@@ -15,7 +15,13 @@
    Reported GPU time is a whole [Backend_cuda.run]: upload, launch, download.
    Compilation is timed separately and excluded, as it is amortised over runs.
 
-   usage: ocaml-cuda-bench [n] [reps] [degree]  (defaults 1<<24, 5, 64) *)
+   The dtype argument selects the precision of the *device* graphs. The
+   vanilla loops are unchanged by it: an OCaml float is a double whatever
+   the card is asked to do, which is exactly the point of the f64 column --
+   vanilla poly costs the same in both rows, the GPU does not.
+
+   usage: ocaml-cuda-bench [n] [reps] [degree] [f32|f64]
+          (defaults 1<<24, 5, 64, f32) *)
 
 open Ocaml_cuda
 
@@ -61,6 +67,15 @@ let vanilla_poly ~c ~x ~r =
   done;
   !s
 
+(* ------------------------------------------------------------------ dtype *)
+
+(* [F32] and [F64] are both [float Dtype.t], so one graph builder covers
+   both precisions with no duplication and no existential wrapper. *)
+let dtype_of_string : string -> float Dtype.t option = function
+  | "f32" -> Some Dtype.F32
+  | "f64" -> Some Dtype.F64
+  | _ -> None
+
 (* ------------------------------------------------------------------ graphs *)
 
 let vec n = Shape.of_dims [ n ]
@@ -69,33 +84,46 @@ let vec n = Shape.of_dims [ n ]
    collapses the whole chain into one kernel however long it is, so the
    printed kernel count stays at 2 (the fused map, then the reduce) while
    the arithmetic per element grows with the degree. *)
-let poly_graph ~n ~c =
+let poly_graph ~dt ~n ~c =
   let open Dsl in
-  let x = param "x" Dtype.F32 (vec n) in
-  let step acc ci = map2 (fun a xi -> add (mul a xi) (const Dtype.F32 ci)) acc x in
+  let x = param "x" dt (vec n) in
+  let step acc ci = map2 (fun a xi -> add (mul a xi) (const dt ci)) acc x in
   let acc =
     match Array.to_list c with
     | [] -> invalid_arg "poly_graph: no coefficients"
-    | c0 :: rest -> List.fold_left step (map (fun _ -> const Dtype.F32 c0) x) rest
+    | c0 :: rest -> List.fold_left step (map (fun _ -> const dt c0) x) rest
   in
   Graph.create ~name:"poly"
-    ~outputs:[ ("r", Tensor.P acc); ("s", Tensor.P (reduce add ~init:(const Dtype.F32 0.0) acc)) ]
+    ~outputs:[ ("r", Tensor.P acc); ("s", Tensor.P (reduce add ~init:(const dt 0.0) acc)) ]
 
-let saxpy_graph ~n ~a = Ocaml_cuda_examples.Saxpy.program ~n ~a
+(* The shape of [Ocaml_cuda_examples.Saxpy.program], but at the requested
+   dtype: the example is fixed at F32 and the point here is to vary it. *)
+let saxpy_graph ~dt ~n ~a =
+  let open Dsl in
+  let x = param "x" dt (vec n) in
+  let y = param "y" dt (vec n) in
+  let ax = map (fun xi -> mul (const dt a) xi) x in
+  let r = map2 add ax y in
+  let s = reduce add ~init:(const dt 0.0) r in
+  Graph.create ~name:"saxpy" ~outputs:[ ("r", Tensor.P r); ("s", Tensor.P s) ]
 
 (* --------------------------------------------------------------- plumbing *)
 
 (* float array -> Value, without going through a list: at n = 2^24 the
    intermediate list alone is 400 MB and dominates the measurement. *)
-let value_of_array (a : float array) =
-  let v = Value.create Dtype.F32 (vec (Array.length a)) in
+let value_of_array dt (a : float array) =
+  let v = Value.create dt (vec (Array.length a)) in
   Array.iteri (fun i x -> Value.set v i x) a;
   Value.P v
 
 let scalar_out name outs =
   let v : float =
     match List.assoc name outs with
-    | Value.P v -> ( match Value.dtype v with Dtype.F32 -> Value.get v 0 | _ -> nan)
+    | Value.P v -> (
+        match Value.dtype v with
+        | Dtype.F32 -> Value.get v 0
+        | Dtype.F64 -> Value.get v 0
+        | _ -> nan)
   in
   v
 
@@ -109,48 +137,73 @@ let agree ~label ~vanilla ~cuda =
 
 let kernel_count g = List.length (Lower.program g).kernels
 
-let report label n flops_per_elem t_van t_cuda t_compile kernels =
-  let gflops t = float_of_int n *. float_of_int flops_per_elem /. t /. 1e9 in
-  Printf.printf "%-6s n=%-9d %2d kernel(s)  jit %6.3fs\n" label n kernels t_compile;
-  Printf.printf "         vanilla %8.3f s   %7.2f GFLOP/s\n" t_van (gflops t_van);
-  Printf.printf "         cuda    %8.3f s   %7.2f GFLOP/s   speedup %.1fx\n\n%!" t_cuda
-    (gflops t_cuda) (t_van /. t_cuda)
+let gflops ~n ~flops_per_elem t = float_of_int n *. float_of_int flops_per_elem /. t /. 1e9
+
+let report label n dtype flops_per_elem t_van t_cuda t_compile kernels =
+  let g t = gflops ~n ~flops_per_elem t in
+  Printf.printf "%-6s n=%-9d %s  %2d kernel(s)  jit %6.3fs\n" label n dtype kernels t_compile;
+  Printf.printf "         vanilla %8.3f s   %7.2f GFLOP/s\n" t_van (g t_van);
+  Printf.printf "         cuda    %8.3f s   %7.2f GFLOP/s   speedup %.1fx\n\n%!" t_cuda (g t_cuda)
+    (t_van /. t_cuda)
 
 (* ------------------------------------------------------------------- main *)
 
 let () =
   let arg i d = try int_of_string Sys.argv.(i) with _ -> d in
   let n = arg 1 (1 lsl 24) and reps = arg 2 5 and degree = arg 3 64 in
+  let dtype_s = try Sys.argv.(4) with _ -> "f32" in
+  let dt =
+    match dtype_of_string dtype_s with
+    | Some dt -> dt
+    | None ->
+        Printf.eprintf "unknown dtype %S: expected f32 or f64\n" dtype_s;
+        Printf.eprintf "usage: ocaml-cuda-bench [n] [reps] [degree] [f32|f64]\n%!";
+        exit 2
+  in
 
   if not (Runtime.Device.available ()) then (
     prerr_endline "no CUDA device: nothing to compare against";
     exit 77);
-  Printf.printf "device: %s\nn = %d, reps = %d (best of), poly degree = %d\n\n%!"
-    (Runtime.Device.name ()) n reps degree;
+  let card = Runtime.Device.name () in
+  Printf.printf "device: %s\nn = %d, reps = %d (best of), poly degree = %d, dtype = %s\n\n%!" card n
+    reps degree dtype_s;
 
   let x = Array.init n (fun i -> float_of_int (i mod 17) -. 8.0) in
   let y = Array.init n (fun i -> float_of_int (n - i) /. 4.0) in
   let r = Array.make n 0.0 in
-  let vx = value_of_array x and vy = value_of_array y in
+  let vx = value_of_array dt x and vy = value_of_array dt y in
 
   (* --- saxpy --- *)
   let a = 2.0 in
-  let g = saxpy_graph ~n ~a in
+  let g = saxpy_graph ~dt ~n ~a in
   let c, t_compile = time (fun () -> Backend_cuda.compile g) in
   let inputs = [ ("x", vx); ("y", vy) ] in
   ignore (Backend_cuda.run c ~inputs) (* warm up: context, module, allocator *);
   let s_van, t_van = best reps (fun () -> vanilla_saxpy ~a ~x ~y ~r) in
-  let outs, t_cuda = best reps (fun () -> Backend_cuda.run c ~inputs) in
+  let outs, t_saxpy = best reps (fun () -> Backend_cuda.run c ~inputs) in
   agree ~label:"saxpy" ~vanilla:(Option.get s_van) ~cuda:(scalar_out "s" (Option.get outs));
-  report "saxpy" n 3 t_van t_cuda t_compile (kernel_count g);
+  report "saxpy" n dtype_s 3 t_van t_saxpy t_compile (kernel_count g);
+  let saxpy_speedup = t_van /. t_saxpy in
 
   (* --- poly --- *)
   let c_coef = Array.init degree (fun j -> 1.0 /. float_of_int (j + 1)) in
-  let g = poly_graph ~n ~c:c_coef in
+  let poly_flops = (2 * degree) - 1 in
+  let g = poly_graph ~dt ~n ~c:c_coef in
   let cc, t_compile = time (fun () -> Backend_cuda.compile g) in
   let inputs = [ ("x", vx) ] in
   ignore (Backend_cuda.run cc ~inputs);
   let s_van, t_van = best reps (fun () -> vanilla_poly ~c:c_coef ~x ~r) in
-  let outs, t_cuda = best reps (fun () -> Backend_cuda.run cc ~inputs) in
+  let outs, t_poly = best reps (fun () -> Backend_cuda.run cc ~inputs) in
   agree ~label:"poly" ~vanilla:(Option.get s_van) ~cuda:(scalar_out "s" (Option.get outs));
-  report "poly" n ((2 * degree) - 1) t_van t_cuda t_compile (kernel_count g)
+  report "poly" n dtype_s poly_flops t_van t_poly t_compile (kernel_count g);
+  let poly_speedup = t_van /. t_poly in
+
+  (* One machine-readable line, the only thing scripts/bench-record.sh reads.
+     Keep the key set and the spelling stable: it is a data format. *)
+  Printf.printf
+    "RESULT card=%S dtype=%s n=%d saxpy_cuda_s=%.4g poly_cuda_s=%.4g poly_gflops=%.4g \
+     saxpy_speedup=%.4g poly_speedup=%.4g\n\
+     %!"
+    card dtype_s n t_saxpy t_poly
+    (gflops ~n ~flops_per_elem:poly_flops t_poly)
+    saxpy_speedup poly_speedup

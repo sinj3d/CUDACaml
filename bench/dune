@@ -1,7 +1,8 @@
 ; Speedup benchmark: hand-written OCaml against the CUDA backend on the
-; same two workloads. Not a test -- it asserts nothing about speed, it
-; only checks the two paths agree and prints the numbers.
+; same two workloads, at f32 or f64. Not a test -- it asserts nothing about
+; speed, it only checks the two paths agree and prints the numbers, plus one
+; machine-readable RESULT line for scripts/bench-record.sh.
 (executable
  (name bench)
  (public_name ocaml-cuda-bench)
- (libraries ocaml_cuda ocaml_cuda_examples unix))
+ (libraries ocaml_cuda unix))

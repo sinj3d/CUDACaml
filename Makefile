@@ -1,4 +1,4 @@
-.PHONY: build unit system test bench clean env
+.PHONY: build unit system test bench record clean env
 
 # ---------------------------------------------------------------------------
 # CUDA runtime discovery.
@@ -64,10 +64,16 @@ system: unit
 
 # Hand-written OCaml against the CUDA backend on the same two workloads.
 # Needs a device; exits 77 without one. Override the shape with e.g.
-#   make bench BENCH_ARGS="1048576 5 256"   (n, reps, poly degree)
+#   make bench BENCH_ARGS="1048576 5 256 f64"  (n, reps, poly degree, dtype)
+# The dtype is f32 or f64 and defaults to f32.
 BENCH_ARGS ?=
 bench: build
 	dune exec ocaml-cuda-bench -- $(BENCH_ARGS)
+
+# Both precisions, then a dated section appended to bench/results/<card>.md.
+# BENCH_ARGS here is "n reps degree" only: the dtype is what it varies.
+record: build
+	bash scripts/bench-record.sh $(BENCH_ARGS)
 
 test: system
 
