@@ -21,6 +21,17 @@ val scan :
 val gather : int32 Tensor.t -> 'a Tensor.t -> 'a Tensor.t
 val reshape : Shape.t -> 'a Tensor.t -> 'a Tensor.t
 
+(** [broadcast shape s]: [s] must have exactly one element, otherwise
+    [Invalid_argument]. Result has [shape]. *)
+val broadcast : Shape.t -> 'a Tensor.t -> 'a Tensor.t
+
+(** [full dtype shape v]: every element is [v]. No Param, no buffer: it is
+    [map (fun _ -> const dtype v) (iota shape)] and is always inlined. *)
+val full : 'a Dtype.t -> Shape.t -> 'a -> 'a Tensor.t
+
+(** [scalar name dtype] = [param name dtype Shape.scalar]. *)
+val scalar : string -> 'a Dtype.t -> 'a Tensor.t
+
 (** {1 Scalars, inside element functions} *)
 
 val const : 'a Dtype.t -> 'a -> 'a Expr.t

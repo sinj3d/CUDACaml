@@ -287,6 +287,16 @@ and compute : type a. memo -> inputs -> a Tensor.t -> a Value.t =
         Value.set out i (Value.get vs i)
       done;
       out
+  | Tensor.Broadcast (shape, src) ->
+      (* [Dsl.broadcast] guarantees the source has exactly one element, so
+         element 0 is the only one there is to read. *)
+      let vs = eval_node memo inputs src in
+      let x = Value.get vs 0 in
+      let out = Value.create t.dtype shape in
+      for i = 0 to Value.numel out - 1 do
+        Value.set out i x
+      done;
+      out
 
 let run g ~inputs =
   let memo : memo = Hashtbl.create 64 in

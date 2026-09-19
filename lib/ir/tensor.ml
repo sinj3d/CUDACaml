@@ -21,6 +21,9 @@ and _ node =
       (** inclusive prefix scan; same shape as source *)
   | Gather : int32 t * 'a t -> 'a node  (** out[i] = src[idx[i]] *)
   | Reshape : Shape.t * 'a t -> 'a node  (** metadata only; numel preserved *)
+  | Broadcast : Shape.t * 'a t -> 'a node
+      (** [src] has numel 1 (shape [] or [1] or [1;1]...); out[i] = src[0].
+          Result shape is the first component. *)
 
 type packed = P : _ t -> packed
 
@@ -39,3 +42,4 @@ let deps (P t) : packed list =
   | Scan (_, _, a) -> [ P a ]
   | Gather (i, a) -> [ P i; P a ]
   | Reshape (_, a) -> [ P a ]
+  | Broadcast (_, a) -> [ P a ]

@@ -36,6 +36,17 @@ let reshape shape (src : _ Tensor.t) =
          (Shape.numel src.shape));
   Tensor.make src.dtype shape (Tensor.Reshape (shape, src))
 
+let broadcast shape (src : _ Tensor.t) =
+  (* The one-element precondition is checked HERE and nowhere else: [Lower]
+     and the interpreter read [src.[0]] unconditionally and trust the
+     graph. *)
+  if Shape.numel src.shape <> 1 then
+    invalid_arg
+      (Printf.sprintf "Dsl.broadcast: source must have exactly one element: %s (%d)"
+         (Shape.to_string src.shape)
+         (Shape.numel src.shape));
+  Tensor.make src.dtype shape (Tensor.Broadcast (shape, src))
+
 (* Scalars *)
 let const dtype v = Expr.make dtype (Expr.Const v)
 let index () = Expr.make Dtype.I32 Expr.Index
@@ -57,3 +68,10 @@ let le a b = cmp Expr.Le a b
 let eq a b = cmp Expr.Eq a b
 let select c (a : _ Expr.t) b = Expr.make a.dtype (Expr.Select (c, a, b))
 let cast dtype e = Expr.make dtype (Expr.Cast (e, dtype))
+
+(* Tensors built out of the above. [full] is a [Map] over [Iota] whose
+   element function ignores its argument, so it carries no [Param] and no
+   host buffer: [Fusion] inlines the [Iota] and [Lower] emits a bare
+   literal. *)
+let full dtype shape v = map (fun _ -> const dtype v) (iota shape)
+let scalar name dtype = param name dtype Shape.scalar

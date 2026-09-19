@@ -22,7 +22,13 @@ let is_param (Tensor.P t) = match t.node with Tensor.Param _ -> true | _ -> fals
 (* Fusion barriers: the result of a [Reduce]/[Scan] is produced by a whole
    kernel co-operating, not by one thread per element, so it cannot be
    inlined into a consumer's element expression. Kept as its own rule even
-   where an output or fan-out would also force a buffer. *)
+   where an output or fan-out would also force a buffer.
+
+   Everything else -- [Map], [Map2], [Iota], [Gather], [Reshape],
+   [Broadcast] -- is element-wise: one thread computes one output element,
+   so it inlines and only the generic rules (output, fan-out >= 2) can
+   force it into a buffer. [Broadcast] inlines to a load at index 0, which
+   is why it is not a barrier even though its source is often a [Reduce]. *)
 let is_barrier (Tensor.P t) =
   match t.node with Tensor.Reduce _ | Tensor.Scan _ -> true | _ -> false
 

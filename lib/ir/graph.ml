@@ -32,6 +32,7 @@ let node_kind (Tensor.P t) =
   | Tensor.Scan _ -> "Scan"
   | Tensor.Gather _ -> "Gather"
   | Tensor.Reshape _ -> "Reshape"
+  | Tensor.Broadcast _ -> "Broadcast"
 
 let dtype_name (Tensor.P t) = Dtype.name t.dtype
 

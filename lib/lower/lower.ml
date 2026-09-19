@@ -145,6 +145,11 @@ and inline_node (plan : Fusion.plan) (bufs : buffers) (Tensor.P t : Tensor.packe
          expression, so a computed-index gather fuses too. *)
       elem plan bufs (Tensor.P src) ~index:(elem plan bufs (Tensor.P idx) ~index)
   | Tensor.Reshape (_, a) -> elem plan bufs (Tensor.P a) ~index (* flat index unchanged *)
+  | Tensor.Broadcast (_, a) ->
+      (* out[i] = src[0] for every i: the consumer's [index] is DISCARDED.
+         The source has numel 1, so any other index would read out of
+         bounds, silently, on the device. *)
+      elem plan bufs (Tensor.P a) ~index:(int_lit 0)
   | Tensor.Param _ | Tensor.Reduce _ | Tensor.Scan _ ->
       (* [Fusion] materialises all three unconditionally. *)
       failwith "Lower: Param/Reduce/Scan must be materialised"
@@ -187,7 +192,8 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
       match t.Tensor.node with
       (* Element-wise: one grid-stride loop, one store. The whole fused
          sub-tree is a single expression inside the Store. *)
-      | Tensor.Map _ | Tensor.Map2 _ | Tensor.Iota | Tensor.Gather _ | Tensor.Reshape _ ->
+      | Tensor.Map _ | Tensor.Map2 _ | Tensor.Iota | Tensor.Gather _ | Tensor.Reshape _
+      | Tensor.Broadcast _ ->
           let numel = Shape.numel t.Tensor.shape in
           let body =
             [
