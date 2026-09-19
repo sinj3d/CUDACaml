@@ -1,0 +1,7 @@
+; Speedup benchmark: hand-written OCaml against the CUDA backend on the
+; same two workloads. Not a test -- it asserts nothing about speed, it
+; only checks the two paths agree and prints the numbers.
+(executable
+ (name bench)
+ (public_name ocaml-cuda-bench)
+ (libraries ocaml_cuda ocaml_cuda_examples unix))

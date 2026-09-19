@@ -1,4 +1,4 @@
-.PHONY: build unit system test clean env
+.PHONY: build unit system test bench clean env
 
 # ---------------------------------------------------------------------------
 # CUDA runtime discovery.
@@ -61,6 +61,13 @@ unit: build
 # prerequisite) and only with the env var set.
 system: unit
 	OCAML_CUDA_SYSTEM=1 dune test test/system --force
+
+# Hand-written OCaml against the CUDA backend on the same two workloads.
+# Needs a device; exits 77 without one. Override the shape with e.g.
+#   make bench BENCH_ARGS="1048576 5 256"   (n, reps, poly degree)
+BENCH_ARGS ?=
+bench: build
+	dune exec ocaml-cuda-bench -- $(BENCH_ARGS)
 
 test: system
 
