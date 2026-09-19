@@ -12,5 +12,6 @@
   test_executor
   test_info
   test_broadcast
-  test_rows)
+  test_rows
+  test_expr_ops)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))

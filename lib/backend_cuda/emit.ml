@@ -55,6 +55,30 @@ let literal (l : K.literal) (d : Dtype.packed) : string =
   | K.I v -> int_literal d v
   | K.B b -> if b then "true" else "false"
 
+(* Bitwise operators are integer only. [bool] is an integral type in C and
+   [&]/[|]/[^] are well defined on it, so it is let through. *)
+let bitwise (d : Dtype.packed) ~sym ~name (a : string) (b : string) : string =
+  match classify d with
+  | Integral -> Printf.sprintf "(%s %s %s)" a sym b
+  | Float32 | Float64 ->
+      failwith (Printf.sprintf "Emit: %s on a float dtype" name)
+
+(* Shifts go through the unsigned type of the same width: a left shift that
+   overflows a signed [int] is undefined, and [>>] on a negative signed
+   value is implementation-defined (an arithmetic shift in practice). The
+   count is masked to the bit width so that no count is undefined either --
+   the interpreter masks the same way, which is what keeps the two bit
+   identical. *)
+let shift (d : Dtype.packed) ~sym ~name (a : string) (b : string) : string =
+  match d with
+  | Dtype.P Dtype.I32 ->
+      Printf.sprintf "((int)((unsigned int)(%s) %s ((%s) & 31)))" a sym b
+  | Dtype.P Dtype.I64 ->
+      Printf.sprintf "((long long)((unsigned long long)(%s) %s ((%s) & 63)))" a sym b
+  | Dtype.P Dtype.Bool -> failwith (Printf.sprintf "Emit: %s on bool" name)
+  | Dtype.P Dtype.F32 | Dtype.P Dtype.F64 ->
+      failwith (Printf.sprintf "Emit: %s on a float dtype" name)
+
 (* [a] and [b] are already-printed operands. Never [min(]/[max(]: those
    need <algorithm>. *)
 let binop (d : Dtype.packed) (op : Expr.binop) (a : string) (b : string) : string =
@@ -73,6 +97,11 @@ let binop (d : Dtype.packed) (op : Expr.binop) (a : string) (b : string) : strin
       | Float32 -> Printf.sprintf "fmaxf(%s, %s)" a b
       | Float64 -> Printf.sprintf "fmax(%s, %s)" a b
       | Integral -> Printf.sprintf "((%s > %s) ? %s : %s)" a b a b)
+  | Expr.Bit_and -> bitwise d ~sym:"&" ~name:"bit_and" a b
+  | Expr.Bit_or -> bitwise d ~sym:"|" ~name:"bit_or" a b
+  | Expr.Bit_xor -> bitwise d ~sym:"^" ~name:"bit_xor" a b
+  | Expr.Shl -> shift d ~sym:"<<" ~name:"shl" a b
+  | Expr.Shr -> shift d ~sym:">>" ~name:"shr" a b
 
 (* Unary minus of an operand that already starts with a sign needs a space:
    [(--7)] lexes as the C decrement operator and does not compile. *)
@@ -97,6 +126,12 @@ let unop (d : Dtype.packed) (op : Expr.unop) (a : string) : string =
       | Float32 -> Printf.sprintf "fabsf(%s)" a
       | Float64 -> Printf.sprintf "fabs(%s)" a
       | Integral -> Printf.sprintf "((%s < 0) ? %s : %s)" a (neg a) a)
+  | Expr.Sin -> math ~f32:"sinf" ~f64:"sin" "sin"
+  | Expr.Cos -> math ~f32:"cosf" ~f64:"cos" "cos"
+  (* The [f] suffix is not decoration: [erf] on a float argument is the
+     double routine and silently costs twice as much. *)
+  | Expr.Erf -> math ~f32:"erff" ~f64:"erf" "erf"
+  | Expr.Erfinv -> math ~f32:"erfinvf" ~f64:"erfinv" "erfinv"
 
 let cmp_op (c : Expr.cmp) : string =
   match c with

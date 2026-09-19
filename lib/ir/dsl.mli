@@ -68,8 +68,36 @@ val neg : 'a Expr.t -> 'a Expr.t
 val sqrt : 'a Expr.t -> 'a Expr.t
 val exp : 'a Expr.t -> 'a Expr.t
 val log : 'a Expr.t -> 'a Expr.t
+
+(** Integer only ([I32]/[I64]); the interpreter raises [Invalid_argument]
+    and [Emit] fails on a float operand. *)
+val bit_and : 'a Expr.t -> 'a Expr.t -> 'a Expr.t
+
+val bit_or : 'a Expr.t -> 'a Expr.t -> 'a Expr.t
+val bit_xor : 'a Expr.t -> 'a Expr.t -> 'a Expr.t
+
+(** Shift count is the second operand, of the same dtype, taken modulo the
+    bit width ([& 31] for [I32], [& 63] for [I64]) so no count is undefined.
+    [shr] is LOGICAL: the sign bit is not replicated. *)
+val shl : 'a Expr.t -> 'a Expr.t -> 'a Expr.t
+
+val shr : 'a Expr.t -> 'a Expr.t -> 'a Expr.t
+
+(** Float only. These shadow the [Stdlib] functions of the same name under
+    [open Dsl], as [sqrt], [exp] and [log] already do. *)
+val sin : 'a Expr.t -> 'a Expr.t
+
+val cos : 'a Expr.t -> 'a Expr.t
+val erf : 'a Expr.t -> 'a Expr.t
+val erfinv : 'a Expr.t -> 'a Expr.t
 val lt : 'a Expr.t -> 'a Expr.t -> bool Expr.t
 val le : 'a Expr.t -> 'a Expr.t -> bool Expr.t
 val eq : 'a Expr.t -> 'a Expr.t -> bool Expr.t
+val ne : 'a Expr.t -> 'a Expr.t -> bool Expr.t
+val gt : 'a Expr.t -> 'a Expr.t -> bool Expr.t
+val ge : 'a Expr.t -> 'a Expr.t -> bool Expr.t
+val and_ : bool Expr.t -> bool Expr.t -> bool Expr.t
+val or_ : bool Expr.t -> bool Expr.t -> bool Expr.t
+val not_ : bool Expr.t -> bool Expr.t
 val select : bool Expr.t -> 'a Expr.t -> 'a Expr.t -> 'a Expr.t
 val cast : 'a Dtype.t -> _ Expr.t -> 'a Expr.t

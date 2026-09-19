@@ -35,6 +35,10 @@ let lookup : type a. binding list -> int -> a Dtype.t -> a =
    where single-precision device arithmetic does. *)
 let round_f32 x = Int32.float_of_bits (Int32.bits_of_float x)
 
+(* The float family sees only the six arithmetic operators: the bitwise
+   ones and the shifts are integer only. The arm is spelled out rather than
+   wildcarded so that a future [binop] constructor is a compile error here
+   too. *)
 let float_binop op x y =
   match op with
   | Expr.Add -> x +. y
@@ -43,6 +47,11 @@ let float_binop op x y =
   | Expr.Div -> x /. y
   | Expr.Min -> Float.min x y
   | Expr.Max -> Float.max x y
+  | Expr.Bit_and -> invalid_arg "Backend_interp: bit_and on a float dtype"
+  | Expr.Bit_or -> invalid_arg "Backend_interp: bit_or on a float dtype"
+  | Expr.Bit_xor -> invalid_arg "Backend_interp: bit_xor on a float dtype"
+  | Expr.Shl -> invalid_arg "Backend_interp: shl on a float dtype"
+  | Expr.Shr -> invalid_arg "Backend_interp: shr on a float dtype"
 
 (* Integer division truncates toward zero, like C: [Int32.div (-7l) 2l = -3l].
    Division by zero raises [Division_by_zero] and is deliberately let through. *)
@@ -52,13 +61,21 @@ let binop : type a. a Dtype.t -> Expr.binop -> a -> a -> a =
   | Dtype.F32 -> round_f32 (float_binop op x y)
   | Dtype.F64 -> float_binop op x y
   | Dtype.I32 -> (
+      (* The shift count is masked to the bit width, exactly as the emitted
+         [(b) & 31] does, and [Shr] is logical so the sign bit is not
+         replicated: this is what makes the two backends bit-identical. *)
       match op with
       | Expr.Add -> Int32.add x y
       | Expr.Sub -> Int32.sub x y
       | Expr.Mul -> Int32.mul x y
       | Expr.Div -> Int32.div x y
       | Expr.Min -> if Int32.compare x y < 0 then x else y
-      | Expr.Max -> if Int32.compare x y > 0 then x else y)
+      | Expr.Max -> if Int32.compare x y > 0 then x else y
+      | Expr.Bit_and -> Int32.logand x y
+      | Expr.Bit_or -> Int32.logor x y
+      | Expr.Bit_xor -> Int32.logxor x y
+      | Expr.Shl -> Int32.shift_left x (Int32.to_int y land 31)
+      | Expr.Shr -> Int32.shift_right_logical x (Int32.to_int y land 31))
   | Dtype.I64 -> (
       match op with
       | Expr.Add -> Int64.add x y
@@ -66,8 +83,64 @@ let binop : type a. a Dtype.t -> Expr.binop -> a -> a -> a =
       | Expr.Mul -> Int64.mul x y
       | Expr.Div -> Int64.div x y
       | Expr.Min -> if Int64.compare x y < 0 then x else y
-      | Expr.Max -> if Int64.compare x y > 0 then x else y)
+      | Expr.Max -> if Int64.compare x y > 0 then x else y
+      | Expr.Bit_and -> Int64.logand x y
+      | Expr.Bit_or -> Int64.logor x y
+      | Expr.Bit_xor -> Int64.logxor x y
+      | Expr.Shl -> Int64.shift_left x (Int64.to_int y land 63)
+      | Expr.Shr -> Int64.shift_right_logical x (Int64.to_int y land 63))
   | Dtype.Bool -> invalid_arg "Backend_interp: binop on bool"
+
+(* The inverse error function, which no stdlib provides. Giles' polynomial
+   (single precision, relative error about 1e-7) supplies the starting
+   point; two Newton steps on [Float.erf] take that to full double
+   precision, since the iteration squares the error each time. *)
+let two_over_sqrt_pi = 2.0 /. Stdlib.sqrt Float.pi
+
+let erfinv_guess x =
+  let w = -.Stdlib.log ((1.0 -. x) *. (1.0 +. x)) in
+  let p =
+    if w < 5.0 then (
+      let w = w -. 2.5 in
+      let p = 2.81022636e-08 in
+      let p = 3.43273939e-07 +. (p *. w) in
+      let p = -3.5233877e-06 +. (p *. w) in
+      let p = -4.39150654e-06 +. (p *. w) in
+      let p = 0.00021858087 +. (p *. w) in
+      let p = -0.00125372503 +. (p *. w) in
+      let p = -0.00417768164 +. (p *. w) in
+      let p = 0.246640727 +. (p *. w) in
+      1.50140941 +. (p *. w))
+    else
+      let w = Stdlib.sqrt w -. 3.0 in
+      let p = -0.000200214257 in
+      let p = 0.000100950558 +. (p *. w) in
+      let p = 0.00134934322 +. (p *. w) in
+      let p = -0.00367342844 +. (p *. w) in
+      let p = 0.00573950773 +. (p *. w) in
+      let p = -0.0076224613 +. (p *. w) in
+      let p = 0.00943887047 +. (p *. w) in
+      let p = 1.00167406 +. (p *. w) in
+      2.83297682 +. (p *. w)
+  in
+  p *. x
+
+let erfinv x =
+  if Float.is_nan x then x
+  else if x = 1.0 then Float.infinity
+  else if x = -1.0 then Float.neg_infinity
+  else if Float.abs x > 1.0 then Float.nan
+  else if x = 0.0 then x
+  else begin
+    let y = ref (erfinv_guess x) in
+    for _ = 1 to 2 do
+      let d = two_over_sqrt_pi *. Stdlib.exp (-.(!y *. !y)) in
+      (* [d] underflows to zero only where [erf] has already saturated and
+         the guess is the best answer there is. *)
+      if d <> 0.0 then y := !y -. ((Float.erf !y -. x) /. d)
+    done;
+    !y
+  end
 
 let float_unop op x =
   match op with
@@ -76,6 +149,10 @@ let float_unop op x =
   | Expr.Exp -> Stdlib.exp x
   | Expr.Log -> Stdlib.log x
   | Expr.Abs -> Float.abs x
+  | Expr.Sin -> Stdlib.sin x
+  | Expr.Cos -> Stdlib.cos x
+  | Expr.Erf -> Float.erf x
+  | Expr.Erfinv -> erfinv x
 
 let unop : type a. a Dtype.t -> Expr.unop -> a -> a =
  fun d op x ->
@@ -88,14 +165,22 @@ let unop : type a. a Dtype.t -> Expr.unop -> a -> a =
       | Expr.Abs -> Int32.abs x
       | Expr.Sqrt -> invalid_arg "Backend_interp: sqrt on i32"
       | Expr.Exp -> invalid_arg "Backend_interp: exp on i32"
-      | Expr.Log -> invalid_arg "Backend_interp: log on i32")
+      | Expr.Log -> invalid_arg "Backend_interp: log on i32"
+      | Expr.Sin -> invalid_arg "Backend_interp: sin on i32"
+      | Expr.Cos -> invalid_arg "Backend_interp: cos on i32"
+      | Expr.Erf -> invalid_arg "Backend_interp: erf on i32"
+      | Expr.Erfinv -> invalid_arg "Backend_interp: erfinv on i32")
   | Dtype.I64 -> (
       match op with
       | Expr.Neg -> Int64.neg x
       | Expr.Abs -> Int64.abs x
       | Expr.Sqrt -> invalid_arg "Backend_interp: sqrt on i64"
       | Expr.Exp -> invalid_arg "Backend_interp: exp on i64"
-      | Expr.Log -> invalid_arg "Backend_interp: log on i64")
+      | Expr.Log -> invalid_arg "Backend_interp: log on i64"
+      | Expr.Sin -> invalid_arg "Backend_interp: sin on i64"
+      | Expr.Cos -> invalid_arg "Backend_interp: cos on i64"
+      | Expr.Erf -> invalid_arg "Backend_interp: erf on i64"
+      | Expr.Erfinv -> invalid_arg "Backend_interp: erfinv on i64")
   | Dtype.Bool -> invalid_arg "Backend_interp: unop on bool"
 
 (* Polymorphic comparison gives the C/IEEE NaN behaviour the oracle needs:

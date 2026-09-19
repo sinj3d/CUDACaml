@@ -6,8 +6,25 @@
     the IR inspectable: a user-written OCaml closure is applied to [Arg]
     nodes exactly once, at graph-construction time, and is never stored. *)
 
-type binop = Add | Sub | Mul | Div | Min | Max
-type unop = Neg | Sqrt | Exp | Log | Abs
+(* [Bit_and] .. [Shr] are integer only: both the interpreter and [Emit]
+   reject them on a float dtype. The shift count is the second operand, of
+   the same dtype, and is taken modulo the bit width on both sides, so no
+   count is undefined. [Shr] is LOGICAL. *)
+type binop =
+  | Add
+  | Sub
+  | Mul
+  | Div
+  | Min
+  | Max
+  | Bit_and
+  | Bit_or
+  | Bit_xor
+  | Shl
+  | Shr
+
+(* [Sqrt] .. [Erfinv] are float only. *)
+type unop = Neg | Sqrt | Exp | Log | Abs | Sin | Cos | Erf | Erfinv
 type cmp = Eq | Ne | Lt | Le | Gt | Ge
 type logic = And | Or
 

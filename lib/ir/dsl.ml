@@ -99,13 +99,31 @@ let mul a b = binop Expr.Mul a b
 let div a b = binop Expr.Div a b
 let min a b = binop Expr.Min a b
 let max a b = binop Expr.Max a b
+let bit_and a b = binop Expr.Bit_and a b
+let bit_or a b = binop Expr.Bit_or a b
+let bit_xor a b = binop Expr.Bit_xor a b
+let shl a b = binop Expr.Shl a b
+let shr a b = binop Expr.Shr a b
 let neg a = unop Expr.Neg a
 let sqrt a = unop Expr.Sqrt a
 let exp a = unop Expr.Exp a
 let log a = unop Expr.Log a
+
+(* These four shadow [Stdlib] under [open Dsl], as [sqrt], [exp] and [log]
+   already do. *)
+let sin a = unop Expr.Sin a
+let cos a = unop Expr.Cos a
+let erf a = unop Expr.Erf a
+let erfinv a = unop Expr.Erfinv a
 let lt a b = cmp Expr.Lt a b
 let le a b = cmp Expr.Le a b
 let eq a b = cmp Expr.Eq a b
+let ne a b = cmp Expr.Ne a b
+let gt a b = cmp Expr.Gt a b
+let ge a b = cmp Expr.Ge a b
+let and_ a b = Expr.make Dtype.Bool (Expr.Logic (Expr.And, a, b))
+let or_ a b = Expr.make Dtype.Bool (Expr.Logic (Expr.Or, a, b))
+let not_ a = Expr.make Dtype.Bool (Expr.Not a)
 let select c (a : _ Expr.t) b = Expr.make a.dtype (Expr.Select (c, a, b))
 let cast dtype e = Expr.make dtype (Expr.Cast (e, dtype))
 
