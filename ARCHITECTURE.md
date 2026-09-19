@@ -69,11 +69,13 @@ violation is a build error, not a code-review catch.
 4. `Emit` is a pretty-printer. A choice that has to be made there belongs in
    `Lower` or `Schedule`.
 5. `runtime` never imports `Graph` or `Kernel_ir`.
+6. Every dtype-dependent decision is made from the `Dtype.t` witness in
+   `Lower` / `Emit` / `Interp`; no dtype is special-cased as "the fast one".
 
 ## Deliberately out of scope (v1)
 
 Nested parallelism / flattening, dynamic shapes, broadcasting, bool tensors,
-autotuning, anything beyond `F32` in the fast path, and the `[%kernel]` ppx
+autotuning, and the `[%kernel]` ppx
 (which would desugar to `Dsl` calls and changes nothing below layer 1).
 
 ## Suggested order of work

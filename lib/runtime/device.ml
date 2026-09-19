@@ -38,3 +38,30 @@ let name () =
   match !state with
   | Some (dev, _) -> (Cuda.Device.get_attributes dev).name
   | None -> "cuda device 0"
+
+type info = {
+  name : string;
+  compute_capability : int * int;
+  multiprocessors : int;
+  total_memory_bytes : int;
+}
+
+let info () =
+  init ();
+  match !state with
+  | None -> failwith "Device.info: no CUDA device"
+  | Some (dev, _) ->
+      let a = Cuda.Device.get_attributes dev in
+      let _free, total = Cuda.Device.get_free_and_total_mem () in
+      {
+        name = a.name;
+        compute_capability = (a.compute_capability_major, a.compute_capability_minor);
+        multiprocessors = a.multiprocessor_count;
+        total_memory_bytes = total;
+      }
+
+let info_to_string i =
+  let major, minor = i.compute_capability in
+  Printf.sprintf "device: %s\ncompute: sm_%d%d\nmultiprocessors: %d\nmemory_mib: %d\n" i.name major
+    minor i.multiprocessors
+    (i.total_memory_bytes / 1_048_576)

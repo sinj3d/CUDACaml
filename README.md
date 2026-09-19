@@ -40,6 +40,7 @@ interpreter.
 | `ocaml-cuda dot <ex>` | the graph as Graphviz |
 | `ocaml-cuda run <ex>` | run on the GPU and print the outputs |
 | `ocaml-cuda check <ex>` | differential-test the GPU against the interpreter |
+| `ocaml-cuda info` | the device description (name, compute capability, SMs, memory) |
 
 `emit` and `dot` need no GPU.
 
@@ -88,5 +89,18 @@ Verified on an RTX 5080 Laptop (sm_120, driver 592.82), OCaml 5.4.0, CUDA 12.9.8
   a 4 194 304-element reduction, and 50 consecutive runs of one compiled program
 - saxpy at n = 2²⁴: interpreter 1.713 s, CUDA warm 0.171 s (**10×**)
 
+### Precision
+
+`F32` and `F64` go through the same pipeline — the same fusion, the same
+lowering, the same emitted kernel shape — and both are differential-tested
+against the interpreter; an f64 graph emits `double`. `I32` and `I64` are
+supported for element-wise and reduction ops. The dtype is chosen per tensor
+at construction, e.g. `param "x" Dtype.F64 (vec n)`.
+
+What differs between `F32` and `F64` is not the compiler but the card. fp64
+*throughput* is roughly 1/64 of fp32 on GeForce parts and about 1/2 on
+A100/H100-class parts, so an f64 kernel that is correct on a laptop may still
+be the wrong choice there.
+
 Out of scope in v1: nested parallelism, dynamic shapes, broadcasting, bool
-tensors, autotuning, and anything beyond `F32` in the fast path.
+tensors, and autotuning.

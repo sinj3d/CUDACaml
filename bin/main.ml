@@ -3,13 +3,14 @@
      emit  <example>  print generated CUDA C++
      dot   <example>  print the graph in Graphviz form
      run   <example>  execute on the CUDA backend and print outputs
-     check <example>  Differential.check interp vs cuda *)
+     check <example>  Differential.check interp vs cuda
+     info             print the device description *)
 
 open Ocaml_cuda
 module Programs = Ocaml_cuda_examples.Programs
 
 let usage () =
-  prerr_endline "usage: ocaml-cuda (list | emit|dot|run|check <example>)";
+  prerr_endline "usage: ocaml-cuda (list | info | emit|dot|run|check <example>)";
   exit 2
 
 let example name =
@@ -41,6 +42,12 @@ let () =
       let e = example name in
       let c = Backend_cuda.compile (e.graph ()) in
       List.iter (fun (n, v) -> print_value n v) (Backend_cuda.run c ~inputs:(e.inputs ()))
+  | [ _; "info" ] ->
+      if not (Runtime.Device.available ()) then begin
+        prerr_endline "no CUDA device";
+        exit 3
+      end;
+      print_string (Runtime.Device.info_to_string (Runtime.Device.info ()))
   | [ _; "check"; name ] -> (
       let e = example name in
       match

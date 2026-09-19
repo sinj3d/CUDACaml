@@ -9,5 +9,6 @@
   test_lower
   test_emit
   test_runtime
-  test_executor)
+  test_executor
+  test_info)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))
