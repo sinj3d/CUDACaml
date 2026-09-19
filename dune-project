@@ -8,5 +8,5 @@
  (depends
   (ocaml (>= 5.1))
   dune
-  ; (cudajit (>= 0.7)) ; enable when lib/runtime is wired to the real driver API
+  (cudajit (>= 0.7))
   ))

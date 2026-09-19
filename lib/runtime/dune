@@ -5,4 +5,4 @@
 (library
  (name ocaml_cuda_runtime)
  (public_name ocaml_cuda.runtime)
- (libraries ocaml_cuda_ir))
+ (libraries ocaml_cuda_ir cudajit.cuda cudajit.nvrtc))

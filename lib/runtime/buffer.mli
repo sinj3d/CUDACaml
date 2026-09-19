@@ -14,3 +14,4 @@ val byte_size : t -> int
 val upload : Value.packed -> t -> unit
 
 val download : t -> Value.packed -> unit
+val unsafe_ptr : t -> Cuda.Deviceptr.t

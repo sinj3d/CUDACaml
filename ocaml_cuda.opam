@@ -4,6 +4,7 @@ synopsis: "An embedded array DSL in OCaml that compiles to CUDA"
 depends: [
   "ocaml" {>= "5.1"}
   "dune" {>= "3.0"}
+  "cudajit" {>= "0.7"}
   "odoc" {with-doc}
 ]
 build: [
