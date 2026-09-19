@@ -1,6 +1,10 @@
 (** Device discovery and context lifetime. *)
 
-val available : unit -> bool  (** false on machines with no CUDA driver *)
-val init : unit -> unit  (** cuInit + primary context; idempotent *)
+(** false on machines with no CUDA driver *)
+val available : unit -> bool
+
+(** cuInit + primary context; idempotent *)
+val init : unit -> unit
+
 val synchronize : unit -> unit
 val name : unit -> string

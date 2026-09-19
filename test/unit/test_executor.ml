@@ -83,9 +83,11 @@ let () =
         let e = Programs.sum 100 in
         let c = Backend_cuda.compile (e.graph ()) in
         let mk k = [ ("x", Value.P (Value.of_list Dtype.F32 (Shape.of_dims [ 100 ]) (List.init 100 (fun _ -> k)))) ] in
+        let first_f32 : type a. a Dtype.t -> a Value.t -> float =
+         fun d v -> match d with Dtype.F32 -> Value.get v 0 | _ -> nan
+        in
         let get o =
-          match List.assoc "s" o with
-          | Value.P v -> ( match Value.dtype v with Dtype.F32 -> Value.get v 0 | _ -> nan)
+          match List.assoc "s" o with Value.P v -> first_f32 (Value.dtype v) v
         in
         C.float ~tol:1e-3 ~expect:100.0 (get (Backend_cuda.run c ~inputs:(mk 1.0)));
         C.float ~tol:1e-3 ~expect:200.0 (get (Backend_cuda.run c ~inputs:(mk 2.0))))

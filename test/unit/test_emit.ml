@@ -67,7 +67,7 @@ let () =
       C.contains ~sub:"i < n" f;
       C.contains ~sub:"i += " f;
       let s = E.stmt ~indent:0 (K.If { cond = K.Var "c"; then_ = [ K.Sync_threads ]; else_ = [] }) in
-      C.contains ~sub:"if (c)" s;
+      C.contains ~sub:"if (c)" s);
   C.test "kernel signature is extern C, __global__, pointer params, shared decls" (fun () ->
       let k = { K.name = "k_1"; params = [ buf "p_x" f32 8; buf "out" f32 8 ]; shared = [ { K.name = "sdata"; dtype = f32; memspace = K.Shared; numel = 256 } ];
                 body = [ K.Sync_threads ]; launch = Schedule.single_block } in
@@ -83,7 +83,7 @@ let () =
           let prog = Lower.program (e.graph ()) in
           let src = E.program prog in
           List.iter (fun (k : K.kernel) -> C.contains ~sub:("void " ^ k.name ^ "(") src) prog.kernels;
-          C.bool ~expect:true (balanced src);
+          C.bool ~expect:true (balanced src))
         Ocaml_cuda_examples.Programs.all);
   C.test "mangle: reserved words and illegal characters, stable" (fun () ->
       let m = Backend_cuda.Mangle.create () in
