@@ -69,8 +69,14 @@ are easy to trip over and neither fails in an obvious way:
 toolkit. If it is not on the default loader path, point `CUDA_PATH` at your
 install — the `Makefile` picks it up and puts the right directory on
 `LD_LIBRARY_PATH`. `CUDA_PATH` must be set at **run** time too, not just when
-linking: `Nvrtc.compile_to_ptx` prepends `$CUDA_PATH/include`. Run `make env`
-to see what the build resolved.
+linking: `Nvrtc.compile_to_ptx` prepends `$CUDA_PATH/include`.
+
+`ctypes-foreign` links `-lffi`, normally from `libffi-dev`. If you cannot
+install it as root, stage it under a prefix and set `LOCAL_PREFIX` to point
+there. Both variables are optional and are no-ops when the paths do not exist.
+
+Run `make env` to see what the build resolved — the first thing to check when a
+link fails on `-lffi` or `-lnvrtc`, or when a GPU test skips unexpectedly.
 
 ## Status
 

@@ -23,11 +23,31 @@ export CPATH           := $(CUDA_PATH)/include:$(CPATH)
 export CUDA_PATH
 endif
 
-# Print what the build will use. Handy when a GPU test skips unexpectedly.
+# ---------------------------------------------------------------------------
+# Optional user prefix.
+#
+# ctypes-foreign (via cudajit) links -lffi. Normally libffi-dev supplies it
+# system-wide; where it cannot be installed as root, staging it under a user
+# prefix and pointing LOCAL_PREFIX here keeps the link working. Purely a
+# no-op when the directory does not exist.
+# ---------------------------------------------------------------------------
+LOCAL_PREFIX ?= $(firstword $(wildcard $(HOME)/local))
+
+ifneq ($(LOCAL_PREFIX),)
+export LD_LIBRARY_PATH := $(LOCAL_PREFIX)/lib:$(LD_LIBRARY_PATH)
+export LIBRARY_PATH    := $(LOCAL_PREFIX)/lib:$(LIBRARY_PATH)
+export CPATH           := $(LOCAL_PREFIX)/include:$(CPATH)
+export PKG_CONFIG_PATH := $(LOCAL_PREFIX)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+endif
+
+# Print what the build will use. Handy when a GPU test skips unexpectedly,
+# or when the link fails looking for -lffi or -lnvrtc.
 env:
 	@echo "CUDA_PATH       = $(CUDA_PATH)"
 	@echo "CUDA_LIB        = $(CUDA_LIB)"
+	@echo "LOCAL_PREFIX    = $(LOCAL_PREFIX)"
 	@echo "LD_LIBRARY_PATH = $(LD_LIBRARY_PATH)"
+	@echo "LIBRARY_PATH    = $(LIBRARY_PATH)"
 
 build:
 	dune build 2>&1
