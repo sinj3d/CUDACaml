@@ -7,7 +7,11 @@ let map f (src : _ Tensor.t) =
   Tensor.make fn.body1.dtype src.shape (Tensor.Map (fn, src))
 
 let map2 f (a : _ Tensor.t) (b : _ Tensor.t) =
-  (* TODO: shape-equality check; broadcasting policy is a design decision *)
+  (* No broadcasting in v1: both operands must have the same shape. *)
+  if not (Shape.equal a.shape b.shape) then
+    invalid_arg
+      (Printf.sprintf "Dsl.map2: shape mismatch: %s vs %s" (Shape.to_string a.shape)
+         (Shape.to_string b.shape));
   let fn = Expr.fn2 a.dtype b.dtype f in
   Tensor.make fn.body2.dtype a.shape (Tensor.Map2 (fn, a, b))
 
@@ -23,6 +27,13 @@ let gather (idx : int32 Tensor.t) (src : _ Tensor.t) =
   Tensor.make src.dtype idx.shape (Tensor.Gather (idx, src))
 
 let reshape shape (src : _ Tensor.t) =
+  (* Metadata only: the element count must be preserved. *)
+  if Shape.numel shape <> Shape.numel src.shape then
+    invalid_arg
+      (Printf.sprintf "Dsl.reshape: numel mismatch: %s (%d) vs %s (%d)"
+         (Shape.to_string shape) (Shape.numel shape)
+         (Shape.to_string src.shape)
+         (Shape.numel src.shape));
   Tensor.make src.dtype shape (Tensor.Reshape (shape, src))
 
 (* Scalars *)
