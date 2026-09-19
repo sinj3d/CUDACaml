@@ -1,0 +1,7 @@
+_build/
+_opam/
+*.install
+*.merlin
+
+# Local Claude Code settings (may contain an API key)
+**/.claude/settings.local.json

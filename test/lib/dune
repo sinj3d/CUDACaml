@@ -1,0 +1,3 @@
+(library
+ (name ocaml_cuda_testlib)
+ (libraries ocaml_cuda))

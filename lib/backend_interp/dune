@@ -1,0 +1,4 @@
+(library
+ (name ocaml_cuda_backend_interp)
+ (public_name ocaml_cuda.backend_interp)
+ (libraries ocaml_cuda_ir ocaml_cuda_backend))

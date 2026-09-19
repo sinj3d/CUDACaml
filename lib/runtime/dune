@@ -1,0 +1,8 @@
+; IR-agnostic. Knows about bytes, pointers, PTX strings and kernel handles;
+; never about Graph or Kernel_ir. The real implementation wraps cudajit
+; (driver API + NVRTC). Until then every function raises, so the rest of
+; the project builds and tests on a machine with no GPU.
+(library
+ (name ocaml_cuda_runtime)
+ (public_name ocaml_cuda.runtime)
+ (libraries ocaml_cuda_ir))

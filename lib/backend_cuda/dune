@@ -1,0 +1,9 @@
+(library
+ (name ocaml_cuda_backend_cuda)
+ (public_name ocaml_cuda.backend_cuda)
+ (libraries
+  ocaml_cuda_ir
+  ocaml_cuda_passes
+  ocaml_cuda_lower
+  ocaml_cuda_runtime
+  ocaml_cuda_backend))

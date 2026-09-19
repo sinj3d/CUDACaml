@@ -1,0 +1,6 @@
+; GATED. These only mean something once every unit test is green and a GPU
+; is present. `make test` enforces the ordering; the binary itself also
+; refuses to run unless OCAML_CUDA_SYSTEM=1 is set.
+(tests
+ (names test_system)
+ (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib unix))

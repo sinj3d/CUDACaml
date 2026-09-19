@@ -1,0 +1,13 @@
+; One executable per task. Run one with:  dune exec test/unit/test_value.exe
+; Run all with:                            dune test test/unit
+(tests
+ (names
+  test_value
+  test_graph
+  test_interp
+  test_fusion
+  test_lower
+  test_emit
+  test_runtime
+  test_executor)
+ (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))
