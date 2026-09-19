@@ -16,9 +16,15 @@ and _ node =
   | Map : ('a, 'b) Expr.fn1 * 'a t -> 'b node
   | Map2 : ('a, 'b, 'c) Expr.fn2 * 'a t * 'b t -> 'c node
   | Reduce : ('a, 'a, 'a) Expr.fn2 * 'a Expr.t * 'a t -> 'a node
-      (** associative op, identity, source. Result has [Shape.scalar]. *)
+      (** associative op, identity, source. Reduces along the LAST axis:
+          a source [[d0;..;dk-1;n]] yields [[d0;..;dk-1]], and a rank-1
+          source yields [Shape.scalar]. The result shape is computed in
+          [Dsl] and never re-derived downstream. Whole-tensor reduction is
+          [Dsl.reduce], which flattens first. *)
   | Scan : ('a, 'a, 'a) Expr.fn2 * 'a Expr.t * 'a t -> 'a node
-      (** inclusive prefix scan; same shape as source *)
+      (** inclusive prefix scan along the LAST axis: every row of length [n]
+          is scanned independently from the identity. Same shape as source.
+          Whole-tensor scan is [Dsl.scan], which flattens first. *)
   | Gather : int32 t * 'a t -> 'a node  (** out[i] = src[idx[i]] *)
   | Reshape : Shape.t * 'a t -> 'a node  (** metadata only; numel preserved *)
   | Broadcast : Shape.t * 'a t -> 'a node

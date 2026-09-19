@@ -13,7 +13,7 @@ let rec loads_in_expr acc : K.expr -> string list = function
   | K.Binop (_, _, a, b) | K.Cmp (_, a, b) | K.Logic (_, a, b) -> loads_in_expr (loads_in_expr acc a) b
   | K.Unop (_, _, a) | K.Not a | K.Cast (_, a) -> loads_in_expr acc a
   | K.Select (a, b, c) -> loads_in_expr (loads_in_expr (loads_in_expr acc a) b) c
-  | K.Var _ | K.Lit _ | K.Global_thread_id | K.Global_size | K.Local_thread_id | K.Block_dim -> acc
+  | K.Var _ | K.Lit _ | K.Global_thread_id | K.Global_size | K.Local_thread_id | K.Block_id | K.Block_dim -> acc
 
 let rec loads_in_stmts acc = function
   | [] -> acc

@@ -15,14 +15,6 @@ let map2 f (a : _ Tensor.t) (b : _ Tensor.t) =
   let fn = Expr.fn2 a.dtype b.dtype f in
   Tensor.make fn.body2.dtype a.shape (Tensor.Map2 (fn, a, b))
 
-let reduce f ~init (src : _ Tensor.t) =
-  let fn = Expr.fn2 src.dtype src.dtype f in
-  Tensor.make src.dtype Shape.scalar (Tensor.Reduce (fn, init, src))
-
-let scan f ~init (src : _ Tensor.t) =
-  let fn = Expr.fn2 src.dtype src.dtype f in
-  Tensor.make src.dtype src.shape (Tensor.Scan (fn, init, src))
-
 let gather (idx : int32 Tensor.t) (src : _ Tensor.t) =
   Tensor.make src.dtype idx.shape (Tensor.Gather (idx, src))
 
@@ -35,6 +27,54 @@ let reshape shape (src : _ Tensor.t) =
          (Shape.to_string src.shape)
          (Shape.numel src.shape));
   Tensor.make src.dtype shape (Tensor.Reshape (shape, src))
+
+(* [Tensor.Reduce] and [Tensor.Scan] act along the last axis. The two
+   surface forms differ only in what they hand the constructor: the
+   whole-tensor forms flatten to rank 1 first, the row forms pass the source
+   through unchanged. The output shape of a [Reduce] is decided HERE and
+   nowhere else -- [Lower] and the interpreter read it off the node. *)
+
+let all_but_last dims =
+  match List.rev dims with [] -> [] | _ :: rest -> List.rev rest
+
+let flatten (src : _ Tensor.t) =
+  reshape (Shape.of_dims [ Shape.numel src.shape ]) src
+
+let reduce f ~init (src : _ Tensor.t) =
+  let fn = Expr.fn2 src.dtype src.dtype f in
+  (* Rank 1 builds the node directly rather than going through a no-op
+     [reshape], so a v1 program lowers to exactly the graph it always did. *)
+  if Shape.rank src.shape = 1 then
+    Tensor.make src.dtype Shape.scalar (Tensor.Reduce (fn, init, src))
+  else
+    let flat = flatten src in
+    Tensor.make src.dtype Shape.scalar (Tensor.Reduce (fn, init, flat))
+
+let scan f ~init (src : _ Tensor.t) =
+  let fn = Expr.fn2 src.dtype src.dtype f in
+  if Shape.rank src.shape = 1 then
+    Tensor.make src.dtype src.shape (Tensor.Scan (fn, init, src))
+  else
+    let flat = flatten src in
+    let scanned = Tensor.make src.dtype flat.shape (Tensor.Scan (fn, init, flat)) in
+    reshape src.shape scanned
+
+let reduce_rows f ~init (src : _ Tensor.t) =
+  if Shape.rank src.shape < 2 then
+    invalid_arg
+      (Printf.sprintf "Dsl.reduce_rows: rank >= 2 required, got %s"
+         (Shape.to_string src.shape));
+  let fn = Expr.fn2 src.dtype src.dtype f in
+  let out_shape = Shape.of_dims (all_but_last (Shape.dims src.shape)) in
+  Tensor.make src.dtype out_shape (Tensor.Reduce (fn, init, src))
+
+let scan_rows f ~init (src : _ Tensor.t) =
+  if Shape.rank src.shape < 2 then
+    invalid_arg
+      (Printf.sprintf "Dsl.scan_rows: rank >= 2 required, got %s"
+         (Shape.to_string src.shape));
+  let fn = Expr.fn2 src.dtype src.dtype f in
+  Tensor.make src.dtype src.shape (Tensor.Scan (fn, init, src))
 
 let broadcast shape (src : _ Tensor.t) =
   (* The one-element precondition is checked HERE and nowhere else: [Lower]
@@ -75,3 +115,28 @@ let cast dtype e = Expr.make dtype (Expr.Cast (e, dtype))
    literal. *)
 let full dtype shape v = map (fun _ -> const dtype v) (iota shape)
 let scalar name dtype = param name dtype Shape.scalar
+
+(* [transpose] is a permutation, and a permutation is a [gather] over a
+   computed index tensor -- no new node, no new lowering rule, and it fuses
+   into its consumer like any other gather. For [x : [m; n]] the output is
+   [[n; m]] and [out[k] = x[(k mod m) * n + k / m]].
+
+   [mod] is deliberately absent from [Expr.binop] (one integer division per
+   operation is enough), so it is spelled [k - (k / m) * m]. Both the
+   division and the multiplication are on I32 device-side expressions. *)
+let transpose (x : _ Tensor.t) =
+  match Shape.dims x.shape with
+  | [ m; n ] ->
+      let mi = const Dtype.I32 (Int32.of_int m) in
+      let ni = const Dtype.I32 (Int32.of_int n) in
+      let idx =
+        map
+          (fun k ->
+            let q = div k mi in
+            add (mul (sub k (mul q mi)) ni) q)
+          (iota (Shape.of_dims [ n; m ]))
+      in
+      gather idx x
+  | _ ->
+      invalid_arg
+        (Printf.sprintf "Dsl.transpose: rank 2 required, got %s" (Shape.to_string x.shape))

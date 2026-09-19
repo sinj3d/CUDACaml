@@ -178,6 +178,12 @@ let rec eval : type a. binding list -> index:int -> a Expr.t -> a =
 type memo = (int, Value.packed) Hashtbl.t
 type inputs = (string * Value.packed) list
 
+(* The extent of the last axis: [Reduce] and [Scan] walk one row of this
+   length at a time. A rank-0 shape has a single row of one element, which
+   is the only reading that keeps [numel = rows * row_length]. *)
+let row_length shape =
+  match List.rev (Shape.dims shape) with [] -> 1 | n :: _ -> n
+
 let input_of : type a. inputs -> string -> a Tensor.t -> a Value.t =
  fun inputs pname t ->
   match List.assoc_opt pname inputs with
@@ -242,26 +248,39 @@ and compute : type a. memo -> inputs -> a Tensor.t -> a Value.t =
       done;
       out
   | Tensor.Reduce (fn, init, src) ->
-      (* Strictly sequential left fold in index order; an empty source
-         yields [init]. *)
+      (* Along the last axis: one strictly sequential left fold per row, in
+         index order. The row count comes from the OUTPUT shape, which [Dsl]
+         computed; an empty row yields [init]. [Index] stays the flat source
+         index, as it is everywhere else. *)
       let vs = eval_node memo inputs src in
-      let acc = ref (eval [] ~index:0 init) in
-      for i = 0 to Value.numel vs - 1 do
-        let env = [ B (src.dtype, !acc); B (src.dtype, Value.get vs i) ] in
-        acc := eval env ~index:i fn.body2
+      let n = row_length src.shape in
+      let out = Value.create t.dtype t.shape in
+      let rows = Value.numel out in
+      for r = 0 to rows - 1 do
+        let acc = ref (eval [] ~index:0 init) in
+        for j = 0 to n - 1 do
+          let i = (r * n) + j in
+          let env = [ B (src.dtype, !acc); B (src.dtype, Value.get vs i) ] in
+          acc := eval env ~index:i fn.body2
+        done;
+        Value.set out r !acc
       done;
-      let out = Value.create t.dtype Shape.scalar in
-      Value.set out 0 !acc;
       out
   | Tensor.Scan (fn, init, src) ->
-      (* Inclusive: the accumulator is stored after each step. *)
+      (* Inclusive, and per row: the accumulator is stored after each step
+         and restarts from [init] at the head of every row. *)
       let vs = eval_node memo inputs src in
       let out = Value.create t.dtype t.shape in
-      let acc = ref (eval [] ~index:0 init) in
-      for i = 0 to Value.numel vs - 1 do
-        let env = [ B (src.dtype, !acc); B (src.dtype, Value.get vs i) ] in
-        acc := eval env ~index:i fn.body2;
-        Value.set out i !acc
+      let n = row_length src.shape in
+      let rows = if n = 0 then 0 else Value.numel vs / n in
+      for r = 0 to rows - 1 do
+        let acc = ref (eval [] ~index:0 init) in
+        for j = 0 to n - 1 do
+          let i = (r * n) + j in
+          let env = [ B (src.dtype, !acc); B (src.dtype, Value.get vs i) ] in
+          acc := eval env ~index:i fn.body2;
+          Value.set out i !acc
+        done
       done;
       out
   | Tensor.Gather (idx, src) ->

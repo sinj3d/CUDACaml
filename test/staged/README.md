@@ -7,7 +7,6 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `unit/test_rows.ml` | T14 | last-axis `Reduce`/`Scan`, `Dsl.reduce_rows`/`scan_rows`/`transpose`, `Kernel_ir.Block_id` |
 | `unit/test_expr_ops.ml` | T15 | bit ops, shifts, `Sin`/`Cos`/`Erf`/`Erfinv`, `Dsl.ne/gt/ge/and_/or_/not_` |
 | `unit/test_rng.ml` | T16 | `Rng` library |
 | `unit/test_deriv.ml` | T17 | `Deriv` (scalar derivatives, `apply1`/`apply2`, `simplify`) |

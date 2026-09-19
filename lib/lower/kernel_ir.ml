@@ -22,6 +22,7 @@ type expr =
   | Global_thread_id  (** blockIdx.x * blockDim.x + threadIdx.x *)
   | Global_size  (** gridDim.x * blockDim.x *)
   | Local_thread_id  (** threadIdx.x *)
+  | Block_id  (** blockIdx.x *)
   | Block_dim  (** blockDim.x *)
   | Load of { buf : buffer; index : expr }
   | Binop of Dtype.packed * Expr.binop * expr * expr  (** dtype = result type *)

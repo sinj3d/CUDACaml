@@ -11,5 +11,6 @@
   test_runtime
   test_executor
   test_info
-  test_broadcast)
+  test_broadcast
+  test_rows)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))

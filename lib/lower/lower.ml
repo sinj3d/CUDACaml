@@ -33,6 +33,14 @@ let int_dtype : Dtype.packed = Dtype.P Dtype.I32
 let int_lit (n : int) : K.expr = K.Lit (K.I (Int64.of_int n), int_dtype)
 let key (p : Tensor.packed) = Uid.to_int (Tensor.uid p)
 
+(* [Reduce] and [Scan] run along the LAST axis, so a kernel's geometry is
+   (rows, row length) rather than a single element count. Both fall out of
+   the shapes: the row length is the last extent of the source and the row
+   count is the numel of the reduce's output, or numel/row_length for a
+   scan. Neither is re-derived from the node's constructor. *)
+let row_length (shape : Shape.t) : int =
+  match List.rev (Shape.dims shape) with [] -> 1 | n :: _ -> n
+
 (* Opening the existential is the only way to look at a node's constructor. *)
 let node_is_param (Tensor.P t) =
   match t.Tensor.node with Tensor.Param _ -> true | _ -> false
@@ -216,11 +224,19 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
             ]
           in
           { K.name; params; shared = []; body; launch = Schedule.grid_stride ~numel }
-      (* Reduction: classic shared-memory tree over ONE block. The tree
-         assumes a single block, hence [Schedule.single_block] and
-         [Local_thread_id]/[Block_dim] rather than the global ids. *)
+      (* Reduction: classic shared-memory tree, one block PER ROW. The tree
+         co-operates within a block, so the ids are [Local_thread_id] and
+         [Block_dim], never the global ones -- [Global_thread_id] already
+         folds in [blockIdx.x] and would skew every row after the first.
+         [Block_id] is the row, and it appears only in the [row * n] offsets
+         and the final store. *)
       | Tensor.Reduce (fn, init, src) ->
-          let n = Shape.numel (Tensor.shape (Tensor.P src)) in
+          let n = row_length (Tensor.shape (Tensor.P src)) in
+          let rows = Shape.numel t.Tensor.shape in
+          (* The first element of this block's row. For a rank-1 source
+             [rows = 1] and every [blockIdx.x * n] term is zero, so the
+             emitted body is v1's up to those terms. *)
+          let row_base = K.Binop (int_dtype, Expr.Mul, K.Block_id, int_lit n) in
           let sdata =
             { K.name = "sdata"; dtype; memspace = K.Shared; numel = Schedule.block_size }
           in
@@ -271,8 +287,8 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
               K.For
                 {
                   var = "i";
-                  lo = tid;
-                  hi = int_lit n;
+                  lo = K.Binop (int_dtype, Expr.Add, row_base, tid);
+                  hi = K.Binop (int_dtype, Expr.Add, row_base, int_lit n);
                   step = K.Block_dim;
                   body =
                     [
@@ -289,8 +305,8 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
               K.Sync_threads;
             ]
             @ tree
-            (* Outside the tree loop, and guarded: exactly one thread writes
-               the scalar result. *)
+            (* Outside the tree loop, and guarded: exactly one thread per
+               block writes that block's row result. *)
             @ [
                 K.If
                   {
@@ -300,7 +316,7 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                         K.Store
                           {
                             buf = out;
-                            index = int_lit 0;
+                            index = K.Block_id;
                             value = K.Load { buf = sdata; index = int_lit 0 };
                           };
                       ];
@@ -308,11 +324,16 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                   };
               ]
           in
-          { K.name; params; shared = [ sdata ]; body; launch = Schedule.single_block }
-      (* Scan: sequential on one thread in v1. Correct and obviously so; a
-         Blelloch scan is a schedule change, not an IR change. *)
+          { K.name; params; shared = [ sdata ]; body; launch = Schedule.rows_block ~rows }
+      (* Scan: sequential along a row, one thread per row. Rows are
+         independent, so the parallelism is the grid and each block is a
+         single thread. Correct and obviously so; a Blelloch scan within the
+         row is a schedule change, not an IR change. *)
       | Tensor.Scan (fn, init, src) ->
-          let n = Shape.numel (Tensor.shape (Tensor.P src)) in
+          let src_shape = Tensor.shape (Tensor.P src) in
+          let n = row_length src_shape in
+          let rows = if n = 0 then 0 else Shape.numel src_shape / n in
+          let row_base = K.Binop (int_dtype, Expr.Mul, K.Block_id, int_lit n) in
           let combine a b = expr_of fn.Expr.body2 ~env:[ a; b ] ~index:(int_lit 0) in
           let body =
             [
@@ -320,8 +341,8 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
               K.For
                 {
                   var = "i";
-                  lo = int_lit 0;
-                  hi = int_lit n;
+                  lo = row_base;
+                  hi = K.Binop (int_dtype, Expr.Add, row_base, int_lit n);
                   step = int_lit 1;
                   body =
                     [
@@ -338,7 +359,7 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                 };
             ]
           in
-          { K.name; params; shared = []; body; launch = Schedule.single_thread }
+          { K.name; params; shared = []; body; launch = Schedule.rows_thread ~rows }
       | Tensor.Param _ ->
           (* Params are uploaded, never computed: [Fusion.kernel_roots]
              excludes them. *)

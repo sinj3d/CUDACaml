@@ -11,7 +11,7 @@ let zero = const Dtype.F32 0.0
 let one name t = [ (name, Tensor.P t) ]
 let last l = List.nth l (List.length l - 1)
 
-let out outputs name =
+let out outputs name : float list * int list =
   match List.assoc name outputs with
   | Value.P v -> (
       match Value.dtype v with
