@@ -2,8 +2,10 @@
     into the source by [Emit] in v1.
 
     [grid_y] and [block_y] default to 1, so a 1-D launch is written exactly
-    as before; only the tiled matmul passes them. *)
+    as before; only the tiled matmul passes them. [stream] defaults to
+    {!Stream.default}. *)
 val run :
+  ?stream:Stream.t ->
   Jit.kernel ->
   grid:int ->
   ?grid_y:int ->

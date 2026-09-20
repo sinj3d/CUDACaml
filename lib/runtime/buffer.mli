@@ -17,4 +17,15 @@ val live_count : unit -> int
 val upload : Value.packed -> t -> unit
 
 val download : t -> Value.packed -> unit
+
+(** Stream-ordered copies. They return once the copy is {e issued}: the
+    host [Value] must stay reachable until [stream] is synchronised,
+    because nothing here keeps it alive. Callers hold it. *)
+val upload_async : Value.packed -> t -> stream:Stream.t -> unit
+
+val download_async : t -> Value.packed -> stream:Stream.t -> unit
+
+(** Device-to-device, stream-ordered. Sizes must match. *)
+val copy_device : dst:t -> src:t -> stream:Stream.t -> unit
+
 val unsafe_ptr : t -> Cuda.Deviceptr.t

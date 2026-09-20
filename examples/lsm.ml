@@ -119,32 +119,15 @@ let to_floats (p : Value.packed) : float array =
   match p with Value.P v -> Array.init (Value.numel v) (float_at p)
 
 (* ------------------------------------------------------------------ *)
-(* The pricer                                                          *)
+(* The graphs                                                          *)
 (* ------------------------------------------------------------------ *)
 
-module type S = sig
-  type t
-
-  (** Compiles the three graphs once for the given sizes. *)
-  val create : n_paths:int -> n_steps:int -> Black_scholes.market -> t
-
-  (** Runs the whole algorithm for one seed and returns the price. *)
-  val price : t -> seed:int32 -> float
-end
-
-module Make (B : Backend.S) : S = struct
+(* Pure graph construction: no backend is named here, so every driver
+   below prices with exactly the same three graphs. *)
+module Graphs = struct
   let dtype = Dtype.F64
   let vec n = Shape.of_dims [ n ]
-
-  type t = {
-    n_paths : int;
-    n_steps : int;
-    strike : float;
-    disc : float;
-    paths : B.compiled;
-    regress : B.compiled;
-    update : B.compiled;
-  }
+  let i32 v = Value.P (Value.of_list Dtype.I32 Shape.scalar [ v ])
 
   (* --- graph 1: the paths ----------------------------------------- *)
 
@@ -249,6 +232,34 @@ module Make (B : Backend.S) : S = struct
     let keep = map2 (fun s c -> select (exercises s c) (kf 0.0) (kf 1.0)) p.st cont in
     let held = map2 (fun k c -> mul k (mul (kf disc) c)) keep p.cf in
     Graph.create ~name:"lsm_update" ~outputs:[ ("cf", Tensor.P (map2 add exv held)) ]
+end
+
+(* ------------------------------------------------------------------ *)
+(* The pricer                                                          *)
+(* ------------------------------------------------------------------ *)
+
+module type S = sig
+  type t
+
+  (** Compiles the three graphs once for the given sizes. *)
+  val create : n_paths:int -> n_steps:int -> Black_scholes.market -> t
+
+  (** Runs the whole algorithm for one seed and returns the price. *)
+  val price : t -> seed:int32 -> float
+end
+
+module Make (B : Backend.S) : S = struct
+  open Graphs
+
+  type t = {
+    n_paths : int;
+    n_steps : int;
+    strike : float;
+    disc : float;
+    paths : B.compiled;
+    regress : B.compiled;
+    update : B.compiled;
+  }
 
   (* --- the driver --------------------------------------------------- *)
 
@@ -266,8 +277,6 @@ module Make (B : Backend.S) : S = struct
       regress = B.compile (regress_graph ~n_paths ~n_steps ~strike ~disc);
       update = B.compile (update_graph ~n_paths ~n_steps ~strike ~disc);
     }
-
-  let i32 v = Value.P (Value.of_list Dtype.I32 Shape.scalar [ v ])
 
   let price t ~seed =
     let n = t.n_paths and ns = t.n_steps in
@@ -304,5 +313,108 @@ module Make (B : Backend.S) : S = struct
       cf := List.assoc "cf" outs
     done;
     let final = to_floats !cf in
+    t.disc *. (Array.fold_left ( +. ) 0.0 final /. float_of_int n)
+end
+
+(* ------------------------------------------------------------------ *)
+(* The resident CUDA driver                                            *)
+(* ------------------------------------------------------------------ *)
+
+(** The same algorithm as {!Make}, specialised to the CUDA backend and
+    written against T25's device-resident values.
+
+    {!Make} hands the whole path matrix [S] back to the host after the
+    simulation and then re-uploads it as an input to both per-step
+    graphs: [2 (n_steps - 1)] crossings of the bus carrying
+    [n_paths * n_steps] doubles each. Here [S] is uploaded never and
+    downloaded once, and the running cash flow [cf] — the other big
+    intermediate — never leaves the device at all: {!Backend_cuda.run_resident}
+    substitutes the caller's buffers for the plan's own, so the kernels
+    read and write them in place. What crosses the bus per step is the
+    two normal equations ([xtx] 9 doubles, [xty] 3), the fitted [beta]
+    (3), and the step index (1 int).
+
+    The arithmetic is identical to {!Make}'s, kernel for kernel and input
+    for input, so the two agree bit for bit. *)
+module Make_cuda_resident : S = struct
+  open Graphs
+  module B = Backend_cuda
+
+  type t = {
+    n_paths : int;
+    n_steps : int;
+    strike : float;
+    disc : float;
+    paths : B.compiled;
+    regress : B.compiled;
+    update : B.compiled;
+  }
+
+  let create ~n_paths ~n_steps (m : Black_scholes.market) =
+    if n_paths < 1 || n_steps < 1 then
+      invalid_arg "Lsm.Make_cuda_resident.create: n_paths and n_steps must be >= 1";
+    let dt = m.maturity /. float_of_int n_steps in
+    let disc = Stdlib.exp (-.m.rate *. dt) in
+    let strike = m.strike in
+    {
+      n_paths;
+      n_steps;
+      strike;
+      disc;
+      paths = B.compile (paths_graph ~n_paths ~n_steps m);
+      regress = B.compile (regress_graph ~n_paths ~n_steps ~strike ~disc);
+      update = B.compile (update_graph ~n_paths ~n_steps ~strike ~disc);
+    }
+
+  (* One device round trip in, one out: everything in between is
+     residents handed from one compiled graph to the next. *)
+  let price t ~seed =
+    let n = t.n_paths and ns = t.n_steps in
+    let seed_r = B.upload (i32 seed) in
+    let s = List.assoc "S" (B.run_resident t.paths ~inputs:[ ("seed", seed_r) ]) in
+    B.free_resident seed_r;
+    (* The only look the host gets at [S], and it is once, not per step:
+       the initial cash flow is the intrinsic value at maturity, which is
+       the last column. [S] itself stays where it was produced. *)
+    let s_host = B.download s in
+    let cf0 =
+      List.init n (fun p -> Stdlib.max (t.strike -. float_at s_host ((p * ns) + ns - 1)) 0.0)
+    in
+    let cf = ref (B.upload (Value.P (Value.of_list Dtype.F64 (vec n) cf0))) in
+    for step = ns - 2 downto 0 do
+      let tv = B.upload (i32 (Int32.of_int step)) in
+      let outs = B.run_resident t.regress ~inputs:[ ("S", s); ("cf", !cf); ("t", tv) ] in
+      let rxtx = List.assoc "xtx" outs and rxty = List.assoc "xty" outs in
+      let xtx = to_floats (B.download rxtx) and xty = to_floats (B.download rxty) in
+      B.free_resident rxtx;
+      B.free_resident rxty;
+      (* [xtx.(0)] counts the in-the-money paths; below three of them the
+         3x3 fit is not determined and the regression is skipped. *)
+      let beta =
+        if xtx.(0) < 3.0 then [| 0.0; 0.0; 0.0 |]
+        else
+          let a =
+            Array.init 3 (fun i ->
+                Array.init 3 (fun j -> xtx.((i * 3) + j) +. if i = j then 1e-10 else 0.0))
+          in
+          solve3 a xty
+      in
+      let bv =
+        B.upload (Value.P (Value.of_list Dtype.F64 (Shape.of_dims [ 3; 1 ]) (Array.to_list beta)))
+      in
+      let outs =
+        B.run_resident t.update ~inputs:[ ("S", s); ("cf", !cf); ("t", tv); ("beta", bv) ]
+      in
+      let next = List.assoc "cf" outs in
+      (* [run_resident] has synchronised, so the previous cash flow and
+         this step's scalars are dead and their buffers can go back. *)
+      B.free_resident !cf;
+      B.free_resident tv;
+      B.free_resident bv;
+      cf := next
+    done;
+    let final = to_floats (B.download !cf) in
+    B.free_resident !cf;
+    B.free_resident s;
     t.disc *. (Array.fold_left ( +. ) 0.0 final /. float_of_int n)
 end

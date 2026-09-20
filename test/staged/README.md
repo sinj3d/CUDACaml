@@ -7,7 +7,6 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `unit/test_streams.ml` | T25 | `Runtime.Stream`/`Event`, `Backend_cuda.run_async`/resident |
 | `unit/test_pinned.ml` | T26 | `Runtime.Pinned`, `Value.of_raw` |
 | `unit/test_multigpu.ml` | T27 | `Backend_cuda.Multi` |
 | `system/test_system.ml` | T28 | replaces `test/system/test_system.ml` |
