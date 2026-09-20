@@ -23,7 +23,8 @@
   test_matmul
   test_lsm
   test_pool
-  test_streams)
+  test_streams
+  test_pinned)
  ; [unix] is for [Unix.gettimeofday]: test_streams times a batch of
  ; synchronous runs against the same batch issued on a ring of streams.
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib unix))

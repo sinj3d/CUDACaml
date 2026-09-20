@@ -22,3 +22,10 @@ val to_list : 'a t -> 'a list
 type 'a raw = Raw : ('a, _, Bigarray.c_layout) Bigarray.Array1.t -> 'a raw
 
 val raw : 'a t -> 'a raw
+
+(** Wrap an existing C-layout Bigarray, sharing its storage: writes through
+    one are visible through the other. [Invalid_argument] if its kind does
+    not match [dtype] (F32 -> Float32, F64 -> Float64, I32 -> Int32,
+    I64 -> Int64; Bool is rejected) or its length is not
+    [Shape.numel shape]. *)
+val of_raw : 'a Dtype.t -> Shape.t -> 'a raw -> 'a t
