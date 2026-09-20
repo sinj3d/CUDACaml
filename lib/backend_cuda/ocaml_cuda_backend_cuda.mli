@@ -27,6 +27,19 @@ val executor : compiled -> Executor.t
     waits, so {!Ocaml_cuda_backend.Backend.S} semantics are unchanged. *)
 val compile_with : streams:int -> Graph.t -> compiled
 
+(** {1 Device selection}
+
+    A CUDA module belongs to a context and a context belongs to a device,
+    so a [compiled] belongs to one device for its whole life. Compile for
+    and run on a specific device: [compile_on] does all of the JIT and the
+    pool allocation under device [device], and [run], [run_async]/[wait],
+    [run_resident] and [release] switch to it for the duration of the
+    call and switch back. [compile] is [compile_on ~device:0], which is
+    what the runtime has always done. *)
+val compile_on : device:int -> ?streams:int -> Graph.t -> compiled
+
+val device_of : compiled -> int
+
 type job
 
 (** Issues a run and returns immediately. The job owns its input host
@@ -66,3 +79,6 @@ module Emit = Emit
 
 module Mangle = Mangle
 module Executor = Executor
+
+(** Data-parallel runs across several devices. *)
+module Multi = Multi
