@@ -22,7 +22,9 @@ let sum l = List.fold_left ( +. ) 0.0 l
    input [wrt], by rerunning the ORIGINAL graph. *)
 let fd g ~output ~wrt inputs =
   let h = 1e-6 in
-  let base = match List.assoc wrt inputs with Value.P v -> ( match Value.dtype v with Dtype.F64 -> v | _ -> failwith "wrt not f64") in
+  let base : float Value.t =
+    match List.assoc wrt inputs with Value.P v -> ( match Value.dtype v with Dtype.F64 -> v | _ -> failwith "wrt not f64")
+  in
   let n = Value.numel base in
   List.init n (fun i ->
       let bump delta =

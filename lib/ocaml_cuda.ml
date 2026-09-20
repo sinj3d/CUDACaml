@@ -17,6 +17,7 @@ module Rng = Ocaml_cuda_rng.Rng
 
 (* Layer 2: symbolic differentiation of element functions *)
 module Deriv = Ocaml_cuda_ad.Deriv
+module Grad = Ocaml_cuda_ad.Grad
 
 (* Layer 2: graph -> graph *)
 module Pass = Ocaml_cuda_passes.Pass

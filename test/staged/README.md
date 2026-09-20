@@ -7,7 +7,6 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `unit/test_grad.ml` | T18 | `Grad.grad` |
 | `unit/test_scatter.ml` | T19 | `Tensor.Scatter_add`, `Kernel_ir.Atomic_add`, Gather adjoint |
 | `unit/test_black_scholes.ml` | T20 | `examples/black_scholes.ml` |
 | `unit/test_multikernel.ml` | T21 | grid-wide reduce, parallel scan |
