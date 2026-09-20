@@ -180,3 +180,17 @@ let transpose (x : _ Tensor.t) =
   | _ ->
       invalid_arg
         (Printf.sprintf "Dsl.transpose: rank 2 required, got %s" (Shape.to_string x.shape))
+
+(* Dense matrix product. The shape is computed here and never re-derived
+   downstream: [Lower] and the interpreter read [m], [k] and [n] off the
+   two operand shapes and the result shape. Unlike [transpose] this cannot
+   be expressed as a gather -- one output element is a whole inner product
+   -- so it is a genuine node with its own kernel. *)
+let matmul (a : 'a Tensor.t) (b : 'a Tensor.t) : 'a Tensor.t =
+  match (Shape.dims a.shape, Shape.dims b.shape) with
+  | [ m; ka ], [ kb; n ] when ka = kb ->
+      Tensor.make a.dtype (Shape.of_dims [ m; n ]) (Tensor.Matmul (a, b))
+  | _ ->
+      invalid_arg
+        (Printf.sprintf "Dsl.matmul: need [m; k] x [k; n], got %s x %s"
+           (Shape.to_string a.shape) (Shape.to_string b.shape))

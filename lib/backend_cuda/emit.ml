@@ -179,7 +179,9 @@ let rec expr (e : K.expr) : string =
   | K.Global_thread_id -> "(blockIdx.x * blockDim.x + threadIdx.x)"
   | K.Global_size -> "(gridDim.x * blockDim.x)"
   | K.Local_thread_id -> "threadIdx.x"
+  | K.Local_thread_id_y -> "threadIdx.y"
   | K.Block_id -> "blockIdx.x"
+  | K.Block_id_y -> "blockIdx.y"
   | K.Block_dim -> "blockDim.x"
   | K.Load { buf; index } -> Printf.sprintf "%s[%s]" buf.K.name (expr index)
   | K.Binop (d, op, a, b) ->
@@ -268,7 +270,7 @@ let kernel (k : K.kernel) : string =
 let rec collect_expr (acc : string list) (e : K.expr) : string list =
   match e with
   | K.Var _ | K.Lit _ | K.Global_thread_id | K.Global_size | K.Local_thread_id
-  | K.Block_id | K.Block_dim ->
+  | K.Local_thread_id_y | K.Block_id | K.Block_id_y | K.Block_dim ->
       acc
   | K.Load { buf; index } -> collect_expr (buf.K.name :: acc) index
   | K.Binop (_, _, a, b) -> collect_expr (collect_expr acc a) b
@@ -308,7 +310,7 @@ let rename_buf m (b : K.buffer) : K.buffer = { b with K.name = Mangle.identifier
 let rec rename_expr m (e : K.expr) : K.expr =
   match e with
   | K.Var _ | K.Lit _ | K.Global_thread_id | K.Global_size | K.Local_thread_id
-  | K.Block_id | K.Block_dim ->
+  | K.Local_thread_id_y | K.Block_id | K.Block_id_y | K.Block_dim ->
       e
   | K.Load { buf; index } -> K.Load { buf = rename_buf m buf; index = rename_expr m index }
   | K.Binop (d, op, a, b) -> K.Binop (d, op, rename_expr m a, rename_expr m b)

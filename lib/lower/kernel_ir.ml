@@ -22,7 +22,9 @@ type expr =
   | Global_thread_id  (** blockIdx.x * blockDim.x + threadIdx.x *)
   | Global_size  (** gridDim.x * blockDim.x *)
   | Local_thread_id  (** threadIdx.x *)
+  | Local_thread_id_y  (** threadIdx.y; only a 2-D launch has one *)
   | Block_id  (** blockIdx.x *)
+  | Block_id_y  (** blockIdx.y; only a 2-D launch has one *)
   | Block_dim  (** blockDim.x *)
   | Load of { buf : buffer; index : expr }
   | Binop of Dtype.packed * Expr.binop * expr * expr  (** dtype = result type *)

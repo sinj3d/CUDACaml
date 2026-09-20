@@ -64,7 +64,9 @@ let count_sub ~sub s =
 (* bump-and-revalue, as in test_grad *)
 let fd g ~output ~wrt inputs =
   let h = 1e-6 in
-  let base = match List.assoc wrt inputs with Value.P v -> ( match Value.dtype v with Dtype.F64 -> v | _ -> failwith "f64") in
+  let base : float Value.t =
+    match List.assoc wrt inputs with Value.P v -> ( match Value.dtype v with Dtype.F64 -> v | _ -> failwith "f64")
+  in
   let n = Value.numel base in
   let sum l = List.fold_left ( +. ) 0.0 l in
   List.init n (fun i ->

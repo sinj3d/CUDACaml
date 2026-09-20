@@ -4,7 +4,10 @@
     (Halide) visible: a lowered kernel can be re-scheduled without being
     re-lowered. *)
 
-type launch = { grid : int; block : int; shared_bytes : int }
+(** A launch geometry. [grid_y] and [block_y] are 1 for every kernel but
+    the matmul: a 1-D launch is exactly a 2-D one whose second dimension is
+    a single row. No kernel uses the z dimension. *)
+type launch = { grid : int; grid_y : int; block : int; block_y : int; shared_bytes : int }
 
 (** Threads per block for every kernel in v1. Reduction kernels also size
     their [__shared__] scratch by this. *)
@@ -49,3 +52,15 @@ val scan_chunk : int
 (** Number of kernels a [Scan] over rows of [row_len] lowers to: [1] when
     [row_len <= scan_chunk], else [3]. *)
 val scan_kernels : row_len:int -> int
+
+(** {1 The 2-D geometry (T22)} *)
+
+(** The side of the square thread tile a [Matmul] is blocked by, and of each
+    of its two shared-memory staging tiles: 16, so a block is 256 threads. *)
+val tile : int
+
+(** [Matmul] over an [[m; n]] output: one block per [tile x tile] patch,
+    [grid = ceil (n / tile)] (x indexes COLUMNS), [grid_y = ceil (m / tile)]
+    (y indexes ROWS), [block = block_y = tile]. Both grid dimensions are
+    clamped up to 1 so a zero-sized launch is still legal. *)
+val tiled_2d : m:int -> n:int -> launch

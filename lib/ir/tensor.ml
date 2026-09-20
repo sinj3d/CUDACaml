@@ -32,6 +32,12 @@ and _ node =
           Float or I32 element type; summation order is unspecified, so a
           float result is reproducible only up to rounding. The device
           kernel does NOT bounds-check [idx]; the interpreter does. *)
+  | Matmul : 'a t * 'a t -> 'a node
+      (** row-major [[m; k]] x [[k; n]] -> [[m; n]]. Dense and unbatched:
+          the one node whose output element is a whole inner product rather
+          than a per-element expression, so it is a fusion barrier and the
+          only node lowered to a 2-D launch. The accumulation order is the
+          inner index ascending on every backend. *)
   | Reshape : Shape.t * 'a t -> 'a node  (** metadata only; numel preserved *)
   | Broadcast : Shape.t * 'a t -> 'a node
       (** [src] has numel 1 (shape [] or [1] or [1;1]...); out[i] = src[0].
@@ -54,5 +60,6 @@ let deps (P t) : packed list =
   | Scan (_, _, a) -> [ P a ]
   | Gather (i, a) -> [ P i; P a ]
   | Scatter_add (i, a, _) -> [ P i; P a ]
+  | Matmul (a, b) -> [ P a; P b ]
   | Reshape (_, a) -> [ P a ]
   | Broadcast (_, a) -> [ P a ]

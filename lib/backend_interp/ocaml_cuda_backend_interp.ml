@@ -404,6 +404,33 @@ and compute : type a. memo -> inputs -> a Tensor.t -> a Value.t =
         Value.set out j (binop t.dtype Expr.Add (Value.get out j) (Value.get vs i))
       done;
       out
+  | Tensor.Matmul (a, b) ->
+      (* [m;k] x [k;n]: one strictly sequential inner product per output
+         element, [p] ascending, both the product and the sum taken through
+         the dtype's [binop] so an F32 result rounds after every step -- the
+         device may still contract [a*b + c] into an FMA, which is the one
+         place the two backends are allowed to differ. *)
+      let va = eval_node memo inputs a in
+      let vb = eval_node memo inputs b in
+      let k = row_length a.shape in
+      let n = row_length t.shape in
+      let out = Value.create t.dtype t.shape in
+      let rows = if n = 0 then 0 else Value.numel out / n in
+      let zero = of_int64 t.dtype 0L in
+      for i = 0 to rows - 1 do
+        for j = 0 to n - 1 do
+          let acc = ref zero in
+          for p = 0 to k - 1 do
+            acc :=
+              binop t.dtype Expr.Add !acc
+                (binop t.dtype Expr.Mul
+                   (Value.get va ((i * k) + p))
+                   (Value.get vb ((p * n) + j)))
+          done;
+          Value.set out ((i * n) + j) !acc
+        done
+      done;
+      out
   | Tensor.Reshape (shape, src) ->
       let vs = eval_node memo inputs src in
       let out = Value.create t.dtype shape in

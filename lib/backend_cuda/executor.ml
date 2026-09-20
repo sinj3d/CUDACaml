@@ -49,9 +49,9 @@ let run (program : Kernel_ir.program) module_ ~inputs =
                 | Some k -> k
                 | None -> failwith ("Executor.run: unknown kernel " ^ kernel)
               in
-              let { Schedule.grid; block; shared_bytes } = k.launch in
-              Launch.run (Jit.get_kernel module_ kernel) ~grid ~block ~shared_bytes
-                (List.map find args);
+              let { Schedule.grid; grid_y; block; block_y; shared_bytes } = k.launch in
+              Launch.run (Jit.get_kernel module_ kernel) ~grid ~grid_y ~block ~block_y
+                ~shared_bytes (List.map find args);
               synced := false
           | Kernel_ir.Download { from; output; shape } ->
               if not !synced then begin

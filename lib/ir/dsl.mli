@@ -52,6 +52,14 @@ val reshape : Shape.t -> 'a Tensor.t -> 'a Tensor.t
     owns a buffer unless fan-out forces it. *)
 val transpose : 'a Tensor.t -> 'a Tensor.t
 
+(** [matmul a b]: the dense row-major product of [a : [m; k]] and
+    [b : [k; n]], of shape [[m; n]]. [Invalid_argument] unless both operands
+    are rank 2 and their inner dimensions agree. Unbatched, and a fusion
+    barrier: an operand that is an inlineable map still fuses INTO the
+    product's tile loads, but the product itself always owns a buffer. The
+    inner index is accumulated in ascending order on both backends. *)
+val matmul : 'a Tensor.t -> 'a Tensor.t -> 'a Tensor.t
+
 (** [broadcast shape s]: [s] must have exactly one element, otherwise
     [Invalid_argument]. Result has [shape]. *)
 val broadcast : Shape.t -> 'a Tensor.t -> 'a Tensor.t

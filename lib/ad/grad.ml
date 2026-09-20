@@ -285,6 +285,19 @@ let back_node : type a. tbl -> a Tensor.t -> a Tensor.t -> unit =
          accumulation is needed on this side, because every source element
          contributes to exactly one output element. *)
       accum_into tbl src (Dsl.gather idx abar)
+  | Tensor.Matmul (xa, xb) ->
+      (* [C = A.B] with [A : [m; k]], [B : [k; n]]:
+           adj_A = abar . B^T   ([m; n] . [n; k])
+           adj_B = A^T . abar   ([k; m] . [m; n]).
+         Each is another [Matmul], so the gradient program lowers through
+         exactly the same tiled kernel, and [transpose] is a gather that
+         fuses into its tile loads. The two products are built only for a
+         float operand: an integer one carries no adjoint, and building the
+         node anyway would leave dead [Matmul]s in the graph. *)
+      if Dtype.is_float xa.Tensor.dtype then
+        accum_into tbl xa (Dsl.matmul abar (Dsl.transpose xb));
+      if Dtype.is_float xb.Tensor.dtype then
+        accum_into tbl xb (Dsl.matmul (Dsl.transpose xa) abar)
   | Tensor.Reshape (_, src) ->
       accum_into tbl src (Dsl.reshape src.Tensor.shape abar)
   | Tensor.Broadcast (_, src) ->

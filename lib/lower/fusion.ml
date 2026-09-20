@@ -27,6 +27,11 @@ let is_param (Tensor.P t) = match t.node with Tensor.Param _ -> true | _ -> fals
    expression to inline, and it is written by two kernels (zero-fill, then
    atomics) that must both have finished before a consumer reads it. Kept as
    its own rule even where an output or fan-out would also force a buffer.
+   [Matmul] is a barrier for the same reason as [Reduce]: one output
+   element is a whole inner product, computed by a co-operating tile of
+   threads, so there is no per-element expression a consumer could inline.
+   Its OPERANDS are not special -- a map feeding a [Matmul] still inlines,
+   into the tile loads.
 
    Everything else -- [Map], [Map2], [Iota], [Gather], [Reshape],
    [Broadcast] -- is element-wise: one thread computes one output element,
@@ -35,7 +40,7 @@ let is_param (Tensor.P t) = match t.node with Tensor.Param _ -> true | _ -> fals
    is why it is not a barrier even though its source is often a [Reduce]. *)
 let is_barrier (Tensor.P t) =
   match t.node with
-  | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _ -> true
+  | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _ | Tensor.Matmul _ -> true
   | _ -> false
 
 let output_uids g =

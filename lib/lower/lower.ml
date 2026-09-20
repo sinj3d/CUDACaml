@@ -165,12 +165,14 @@ and inline_node (plan : Fusion.plan) (bufs : buffers) (Tensor.P t : Tensor.packe
          The source has numel 1, so any other index would read out of
          bounds, silently, on the device. *)
       elem plan bufs (Tensor.P a) ~index:(int_lit 0)
-  | Tensor.Param _ | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _ ->
-      (* [Fusion] materialises all four unconditionally. A [Scatter_add] has
+  | Tensor.Param _ | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _
+  | Tensor.Matmul _ ->
+      (* [Fusion] materialises all five unconditionally. A [Scatter_add] has
          no per-element expression at all -- output element [i] is the sum of
          an unknown subset of the source -- so there is nothing to inline
-         even in principle. *)
-      failwith "Lower: Param/Reduce/Scan/Scatter_add must be materialised"
+         even in principle, and a [Matmul] element is a whole inner product
+         computed by a co-operating tile. *)
+      failwith "Lower: Param/Reduce/Scan/Scatter_add/Matmul must be materialised"
 
 (* ------------------------------------------------------------------ *)
 (* Kernel inputs                                                       *)
@@ -526,7 +528,13 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : lo
               ]
           in
           let chunk_launch ~blocks =
-            { Schedule.grid = max 1 blocks; block = c; shared_bytes = 0 }
+            {
+              Schedule.grid = max 1 blocks;
+              grid_y = 1;
+              block = c;
+              block_y = 1;
+              shared_bytes = 0;
+            }
           in
           if nb = 1 then
             {
@@ -776,6 +784,178 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : lo
             }
           in
           { kernels = [ zero; scatter ]; scratch = [] }
+      (* Dense matmul, blocked by [Schedule.tile]: the one 2-D launch in the
+         compiler. A block owns one [tile x tile] patch of the output and
+         walks the shared dimension a tile at a time, staging a tile of each
+         operand in shared memory, so every element read from global memory
+         is reused [tile] times.
+
+         x indexes COLUMNS and y indexes ROWS -- on the grid and inside the
+         block alike -- so that threads adjacent in x read adjacent columns
+         of [b] and write adjacent columns of the output, which is what
+         makes the global accesses coalesce. Swapping the two roles is not a
+         performance detail: it computes a different matrix.
+
+         The tile loads go through [elem], so an inlineable operand (a map,
+         a transpose, a broadcast) is fused into the load and costs no
+         buffer. They are guarded rather than assumed in range: the emitted
+         [?:] does not evaluate the branch it does not take, so an [m], [n]
+         or [k] that is not a multiple of [tile] reads nothing out of bounds
+         and the padding lanes hold the additive identity, which leaves the
+         inner product unchanged. *)
+      | Tensor.Matmul (a, b) ->
+          let m, n =
+            match Shape.dims t.Tensor.shape with
+            | [ m; n ] -> (m, n)
+            | dims ->
+                failwith
+                  (Printf.sprintf "Lower: Matmul output has rank %d, expected 2"
+                     (List.length dims))
+          in
+          let k = row_length (Tensor.shape (Tensor.P a)) in
+          let tile = Schedule.tile in
+          (* Tiles along the shared dimension. [k = 0] gives none, and the
+             kernel then stores the identity, exactly as the interpreter
+             does for an empty inner product. *)
+          let nt = (k + tile - 1) / tile in
+          let tx = K.Local_thread_id and ty = K.Local_thread_id_y in
+          let sa = { K.name = "sa"; dtype; memspace = K.Shared; numel = tile * tile } in
+          let sb = { K.name = "sb"; dtype; memspace = K.Shared; numel = tile * tile } in
+          let zero = K.Lit (zero_lit t.Tensor.dtype, dtype) in
+          let row = K.Var "row" and col = K.Var "col" in
+          let lt x lim = K.Cmp (Expr.Lt, x, int_lit lim) in
+          let both x y = K.Logic (Expr.And, x, y) in
+          (* Every thread stages exactly one element of each tile, at its own
+             [(ty, tx)] slot. *)
+          let slot = add (mul ty (int_lit tile)) tx in
+          let step_body =
+            [
+              (* Within a tile step, the element of [a] a thread loads is in
+                 its OWN row and the x-th column of the tile; the element of
+                 [b] is in the y-th row of the tile and its own column. *)
+              K.Let
+                {
+                  var = "ka";
+                  dtype = int_dtype;
+                  value = add (mul (K.Var "kt") (int_lit tile)) tx;
+                };
+              K.Let
+                {
+                  var = "kb";
+                  dtype = int_dtype;
+                  value = add (mul (K.Var "kt") (int_lit tile)) ty;
+                };
+              K.Store
+                {
+                  buf = sa;
+                  index = slot;
+                  value =
+                    K.Select
+                      ( both (lt row m) (lt (K.Var "ka") k),
+                        elem plan bufs (Tensor.P a)
+                          ~index:(add (mul row (int_lit k)) (K.Var "ka")),
+                        zero );
+                };
+              K.Store
+                {
+                  buf = sb;
+                  index = slot;
+                  value =
+                    K.Select
+                      ( both (lt (K.Var "kb") k) (lt col n),
+                        elem plan bufs (Tensor.P b)
+                          ~index:(add (mul (K.Var "kb") (int_lit n)) col),
+                        zero );
+                };
+              (* Before the tile is read: every lane must be published. *)
+              K.Sync_threads;
+              K.For
+                {
+                  var = "p";
+                  lo = int_lit 0;
+                  hi = int_lit tile;
+                  step = int_lit 1;
+                  body =
+                    [
+                      K.Assign
+                        {
+                          var = "acc";
+                          value =
+                            K.Binop
+                              ( dtype,
+                                Expr.Add,
+                                K.Var "acc",
+                                K.Binop
+                                  ( dtype,
+                                    Expr.Mul,
+                                    K.Load
+                                      {
+                                        buf = sa;
+                                        index = add (mul ty (int_lit tile)) (K.Var "p");
+                                      },
+                                    K.Load
+                                      {
+                                        buf = sb;
+                                        index = add (mul (K.Var "p") (int_lit tile)) tx;
+                                      } ) );
+                        };
+                    ];
+                };
+              (* And after: the next step overwrites these very lanes, which
+                 a thread still inside the loop above would then read. One
+                 barrier per step is the classic bug. *)
+              K.Sync_threads;
+            ]
+          in
+          let body =
+            [
+              K.Let
+                {
+                  var = "row";
+                  dtype = int_dtype;
+                  value = add (mul K.Block_id_y (int_lit tile)) ty;
+                };
+              K.Let
+                {
+                  var = "col";
+                  dtype = int_dtype;
+                  value = add (mul K.Block_id (int_lit tile)) tx;
+                };
+              (* The accumulator is a register for the whole kernel: one
+                 [Let] here, an [Assign] per product. *)
+              K.Let { var = "acc"; dtype; value = zero };
+              K.For
+                {
+                  var = "kt";
+                  lo = int_lit 0;
+                  hi = int_lit nt;
+                  step = int_lit 1;
+                  body = step_body;
+                };
+              (* A block on the ragged edge of the output has threads with no
+                 element to write. They still ran the loop above, because
+                 they take part in the staging and in every barrier. *)
+              K.If
+                {
+                  cond = both (lt row m) (lt col n);
+                  then_ =
+                    [
+                      K.Store
+                        {
+                          buf = out;
+                          index = add (mul row (int_lit n)) col;
+                          value = K.Var "acc";
+                        };
+                    ];
+                  else_ = [];
+                };
+            ]
+          in
+          {
+            kernels =
+              [ { K.name; params; shared = [ sa; sb ]; body; launch = Schedule.tiled_2d ~m ~n } ];
+            scratch = [];
+          }
       | Tensor.Param _ ->
           (* Params are uploaded, never computed: [Fusion.kernel_roots]
              excludes them. *)

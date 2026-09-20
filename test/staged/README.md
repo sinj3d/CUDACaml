@@ -7,7 +7,6 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `unit/test_matmul.ml` | T22 | `Tensor.Matmul`, 2-D launch |
 | `unit/test_lsm.ml` | T23 | `examples/lsm.ml` |
 | `unit/test_pool.ml` | T24 | persistent `Executor.t`, `Buffer.live_count` |
 | `unit/test_streams.ml` | T25 | `Runtime.Stream`/`Event`, `Backend_cuda.run_async`/resident |
