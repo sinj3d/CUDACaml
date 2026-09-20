@@ -194,24 +194,35 @@ let inputs_of (plan : Fusion.plan) (root : Tensor.packed) : Tensor.packed list =
   List.iter visit (Tensor.deps root);
   List.rev !acc
 
+
 (* ------------------------------------------------------------------ *)
 (* Kernels per root                                                    *)
 (* ------------------------------------------------------------------ *)
 
-(* A root usually lowers to exactly one kernel, but not always: a
-   [Scatter_add] needs a zero-fill pass before its atomics, and T21's
-   multi-kernel reduce/scan will need the same freedom. The list is in
-   launch order, and [program] concatenates it, so the host plan's [Launch]
-   ops follow the same order with no extra bookkeeping. *)
-let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.kernel list
-    =
+(* What one kernel root lowers to: the kernels, in launch order, plus the
+   scratch buffers those kernels need. A root usually lowers to exactly one
+   kernel and no scratch, but not always: a [Scatter_add] needs a zero-fill
+   pass before its atomics, and a large [Reduce] or a multi-chunk [Scan]
+   becomes two or three passes communicating through a scratch buffer.
+   [program] allocates the scratch immediately before the root's first
+   launch and frees it immediately after its last, so a scratch buffer is
+   live for exactly as long as the root that owns it. *)
+type lowered = { kernels : K.kernel list; scratch : K.buffer list }
+
+let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : lowered =
   let out = find_buffer bufs root in
+  let ins = List.map (find_buffer bufs) (inputs_of plan root) in
   (* The root's own buffer is always the LAST param: [Executor] and the
      tests both rely on it. *)
-  let params = List.map (find_buffer bufs) (inputs_of plan root) @ [ out ] in
+  let params = ins @ [ out ] in
+  let add a b = K.Binop (int_dtype, Expr.Add, a, b) in
+  let sub a b = K.Binop (int_dtype, Expr.Sub, a, b) in
+  let mul a b = K.Binop (int_dtype, Expr.Mul, a, b) in
+  let div a b = K.Binop (int_dtype, Expr.Div, a, b) in
   match root with
   | Tensor.P t -> (
       let name = "k_" ^ string_of_int (Uid.to_int t.Tensor.uid) in
+      let scratch_name suffix = "t" ^ string_of_int (Uid.to_int t.Tensor.uid) ^ suffix in
       let dtype = Dtype.P t.Tensor.dtype in
       match t.Tensor.node with
       (* Element-wise: one grid-stride loop, one store. The whole fused
@@ -239,24 +250,31 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
                 };
             ]
           in
-          [ { K.name; params; shared = []; body; launch = Schedule.grid_stride ~numel } ]
-      (* Reduction: classic shared-memory tree, one block PER ROW. The tree
+          {
+            kernels =
+              [ { K.name; params; shared = []; body; launch = Schedule.grid_stride ~numel } ];
+            scratch = [];
+          }
+      (* Reduction: classic shared-memory tree, one block PER ROW when the
+         row is short enough that a single block saturates it. The tree
          co-operates within a block, so the ids are [Local_thread_id] and
          [Block_dim], never the global ones -- [Global_thread_id] already
          folds in [blockIdx.x] and would skew every row after the first.
-         [Block_id] is the row, and it appears only in the [row * n] offsets
-         and the final store. *)
+
+         A long row instead gets [g = Schedule.reduce_blocks] blocks, and
+         the same tree runs twice: once per (row, block) pair into a
+         partials buffer, then once per row over that buffer. Both passes
+         go through [reduction], which differs only in what it folds and in
+         where the block leader puts the answer. *)
       | Tensor.Reduce (fn, init, src) ->
           let n = row_length (Tensor.shape (Tensor.P src)) in
           let rows = Shape.numel t.Tensor.shape in
-          (* The first element of this block's row. For a rank-1 source
-             [rows = 1] and every [blockIdx.x * n] term is zero, so the
-             emitted body is v1's up to those terms. *)
-          let row_base = K.Binop (int_dtype, Expr.Mul, K.Block_id, int_lit n) in
+          let g = Schedule.reduce_blocks ~row_len:n in
           let sdata =
             { K.name = "sdata"; dtype; memspace = K.Shared; numel = Schedule.block_size }
           in
           let combine a b = expr_of fn.Expr.body2 ~env:[ a; b ] ~index:(int_lit 0) in
+          let identity () = expr_of init ~env:[] ~index:(int_lit 0) in
           let tid = K.Local_thread_id in
           (* block_size/2 down to 1, unrolled. Derived from [block_size] so
              it follows the schedule instead of contradicting it. *)
@@ -277,11 +295,7 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
                               value =
                                 combine
                                   (K.Load { buf = sdata; index = tid })
-                                  (K.Load
-                                     {
-                                       buf = sdata;
-                                       index = K.Binop (int_dtype, Expr.Add, tid, int_lit s);
-                                     });
+                                  (K.Load { buf = sdata; index = add tid (int_lit s) });
                             };
                         ];
                       else_ = [];
@@ -292,37 +306,37 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
                 ])
               steps
           in
-          let body =
-            [
-              (* Every one of the block_size threads starts its private [acc]
-                 at [init], so [init] is folded into the result block_size
-                 times. That is only correct because [init] is required to be
-                 the IDENTITY of the operator -- the [Dsl.reduce] contract.
-                 A non-identity [init] would be silently multiplied here. *)
-              K.Let { var = "acc"; dtype; value = expr_of init ~env:[] ~index:(int_lit 0) };
-              K.For
-                {
-                  var = "i";
-                  lo = K.Binop (int_dtype, Expr.Add, row_base, tid);
-                  hi = K.Binop (int_dtype, Expr.Add, row_base, int_lit n);
-                  step = K.Block_dim;
-                  body =
-                    [
-                      K.Assign
-                        {
-                          var = "acc";
-                          value =
-                            combine (K.Var "acc")
-                              (elem plan bufs (Tensor.P src) ~index:(K.Var "i"));
-                        };
-                    ];
-                };
-              K.Store { buf = sdata; index = tid; value = K.Var "acc" };
-              K.Sync_threads;
-            ]
+          (* [prelude] declares whatever the loop bounds mention; the loop
+             folds [load i] for [i] from [lo] to [hi] by [step]; thread 0
+             stores the block result at [dst.(dst_index)]. *)
+          let reduction ~prelude ~lo ~hi ~step ~load ~dst ~dst_index =
+            prelude
+            @ [
+                (* Every one of the block_size threads starts its private
+                   [acc] at [init], so [init] is folded into the result
+                   block_size times. That is only correct because [init] is
+                   required to be the IDENTITY of the operator -- the
+                   [Dsl.reduce] contract. A non-identity [init] would be
+                   silently multiplied here. *)
+                K.Let { var = "acc"; dtype; value = identity () };
+                K.For
+                  {
+                    var = "i";
+                    lo;
+                    hi;
+                    step;
+                    body =
+                      [
+                        K.Assign
+                          { var = "acc"; value = combine (K.Var "acc") (load (K.Var "i")) };
+                      ];
+                  };
+                K.Store { buf = sdata; index = tid; value = K.Var "acc" };
+                K.Sync_threads;
+              ]
             @ tree
-            (* Outside the tree loop, and guarded: exactly one thread per
-               block writes that block's row result. *)
+            (* Outside the tree, and guarded: exactly one thread per block
+               writes that block's result. *)
             @ [
                 K.If
                   {
@@ -331,8 +345,8 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
                       [
                         K.Store
                           {
-                            buf = out;
-                            index = K.Block_id;
+                            buf = dst;
+                            index = dst_index;
                             value = K.Load { buf = sdata; index = int_lit 0 };
                           };
                       ];
@@ -340,43 +354,350 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
                   };
               ]
           in
-          [ { K.name; params; shared = [ sdata ]; body; launch = Schedule.rows_block ~rows } ]
-      (* Scan: sequential along a row, one thread per row. Rows are
-         independent, so the parallelism is the grid and each block is a
-         single thread. Correct and obviously so; a Blelloch scan within the
-         row is a schedule change, not an IR change. *)
+          if g = 1 then
+            (* v1, unchanged: [Block_id] is the row, and it appears only in
+               the [row * n] offsets and in the final store. For a rank-1
+               source [rows = 1] and every [blockIdx.x * n] term is zero. *)
+            let row_base = mul K.Block_id (int_lit n) in
+            let body =
+              reduction ~prelude:[] ~lo:(add row_base tid) ~hi:(add row_base (int_lit n))
+                ~step:K.Block_dim
+                ~load:(fun i -> elem plan bufs (Tensor.P src) ~index:i)
+                ~dst:out ~dst_index:K.Block_id
+            in
+            {
+              kernels =
+                [
+                  {
+                    K.name;
+                    params;
+                    shared = [ sdata ];
+                    body;
+                    launch = Schedule.rows_block ~rows;
+                  };
+                ];
+              scratch = [];
+            }
+          else
+            (* [out] cannot double as the partials buffer: it holds one
+               element per row, not [g] of them. *)
+            let partials =
+              {
+                K.name = scratch_name "_partials";
+                dtype;
+                memspace = K.Global;
+                numel = rows * g;
+              }
+            in
+            (* Pass 1: the grid is (row, block-within-row) flattened, so
+               [blockIdx.x] no longer IS the row and both halves have to be
+               recovered by division. The stride is a whole row's worth of
+               threads, [g * block_size], which keeps each block's reads
+               coalesced across its slice of the row. *)
+            let row = K.Var "row" and blk = K.Var "blk" in
+            let row_base = mul row (int_lit n) in
+            let partial_body =
+              reduction
+                ~prelude:
+                  [
+                    K.Let
+                      { var = "row"; dtype = int_dtype; value = div K.Block_id (int_lit g) };
+                    K.Let
+                      {
+                        var = "blk";
+                        dtype = int_dtype;
+                        value = sub K.Block_id (mul row (int_lit g));
+                      };
+                  ]
+                ~lo:(add row_base (add (mul blk (int_lit Schedule.block_size)) tid))
+                ~hi:(add row_base (int_lit n))
+                ~step:(int_lit (g * Schedule.block_size))
+                ~load:(fun i -> elem plan bufs (Tensor.P src) ~index:i)
+                ~dst:partials ~dst_index:K.Block_id
+            in
+            let partial_kernel =
+              {
+                K.name = name ^ "_partial";
+                params = ins @ [ partials ];
+                shared = [ sdata ];
+                body = partial_body;
+                launch = Schedule.rows_block ~rows:(rows * g);
+              }
+            in
+            (* Pass 2: one block per row again, folding the [g] partials of
+               that row. [g <= 128 <= block_size], so the loop body runs at
+               most once per thread and the tree does the rest. *)
+            let p_base = mul K.Block_id (int_lit g) in
+            let final_body =
+              reduction ~prelude:[] ~lo:(add p_base tid) ~hi:(add p_base (int_lit g))
+                ~step:K.Block_dim
+                ~load:(fun i -> K.Load { buf = partials; index = i })
+                ~dst:out ~dst_index:K.Block_id
+            in
+            let final_kernel =
+              {
+                K.name;
+                params = [ partials; out ];
+                shared = [ sdata ];
+                body = final_body;
+                launch = Schedule.rows_block ~rows;
+              }
+            in
+            { kernels = [ partial_kernel; final_kernel ]; scratch = [ partials ] }
+      (* Scan: a Hillis-Steele inclusive scan in shared memory, one chunk of
+         [Schedule.scan_chunk] elements per block. A row that fits in one
+         chunk is one kernel; a longer row takes the classic three passes,
+         because nothing short of a kernel boundary synchronises blocks.
+
+         [combine] is only required to be ASSOCIATIVE, not commutative, so
+         every combination below keeps the earlier element on the left. *)
       | Tensor.Scan (fn, init, src) ->
           let src_shape = Tensor.shape (Tensor.P src) in
           let n = row_length src_shape in
           let rows = if n = 0 then 0 else Shape.numel src_shape / n in
-          let row_base = K.Binop (int_dtype, Expr.Mul, K.Block_id, int_lit n) in
+          let c = Schedule.scan_chunk in
+          (* Chunks per row. An empty row still needs one legal chunk. *)
+          let nb = if n <= 0 then 1 else (n + c - 1) / c in
           let combine a b = expr_of fn.Expr.body2 ~env:[ a; b ] ~index:(int_lit 0) in
-          let body =
+          let identity () = expr_of init ~env:[] ~index:(int_lit 0) in
+          let sdata = { K.name = "sdata"; dtype; memspace = K.Shared; numel = c } in
+          let tid = K.Local_thread_id in
+          let s_at i = K.Load { buf = sdata; index = i } in
+          (* Offsets 1, 2, 4, ... < c, unrolled: [K.For] steps by addition
+             and this schedule doubles. *)
+          let offsets =
+            let rec go o acc = if o >= c then List.rev acc else go (o * 2) (o :: acc) in
+            go 1 []
+          in
+          (* TWO barriers per step, not one: the first publishes the
+             previous step's writes, the second stops this step's write from
+             landing in a lane another thread has not read yet. The value in
+             between lives in a register, one [Let] per step -- the names
+             have to differ because the unrolled steps share a C scope. *)
+          let hillis_steele =
+            List.concat_map
+              (fun o ->
+                let v = Printf.sprintf "v%d" o in
+                [
+                  K.Sync_threads;
+                  K.Let
+                    {
+                      var = v;
+                      dtype;
+                      value =
+                        K.Select
+                          ( K.Cmp (Expr.Ge, tid, int_lit o),
+                            combine (s_at (sub tid (int_lit o))) (s_at tid),
+                            s_at tid );
+                    };
+                  K.Sync_threads;
+                  K.Store { buf = sdata; index = tid; value = K.Var v };
+                ])
+              offsets
+            (* The chunk total is read by thread 0 alone, out of a lane it
+               did not write, so the last write needs a barrier too. *)
+            @ [ K.Sync_threads ]
+          in
+          (* One chunk of [len] valid elements starting at flat index
+             [base]. Lanes past [len] hold the identity, which leaves the
+             valid prefixes untouched and never reads out of bounds: the
+             emitted [?:] does not evaluate the load it guards. *)
+          let chunk_scan ~base ~len =
             [
-              K.Let { var = "acc"; dtype; value = expr_of init ~env:[] ~index:(int_lit 0) };
-              K.For
+              K.Store
                 {
-                  var = "i";
-                  lo = row_base;
-                  hi = K.Binop (int_dtype, Expr.Add, row_base, int_lit n);
-                  step = int_lit 1;
-                  body =
-                    [
-                      K.Assign
-                        {
-                          var = "acc";
-                          value =
-                            combine (K.Var "acc")
-                              (elem plan bufs (Tensor.P src) ~index:(K.Var "i"));
-                        };
-                      (* Inclusive scan: store after combining. *)
-                      K.Store { buf = out; index = K.Var "i"; value = K.Var "acc" };
-                    ];
+                  buf = sdata;
+                  index = tid;
+                  value =
+                    K.Select
+                      ( K.Cmp (Expr.Lt, tid, len),
+                        elem plan bufs (Tensor.P src) ~index:(add base tid),
+                        identity () );
                 };
             ]
+            @ hillis_steele
+            @ [
+                K.If
+                  {
+                    cond = K.Cmp (Expr.Lt, tid, len);
+                    then_ = [ K.Store { buf = out; index = add base tid; value = s_at tid } ];
+                    else_ = [];
+                  };
+              ]
           in
-          [ { K.name; params; shared = []; body; launch = Schedule.rows_thread ~rows } ]
-      (* The one root that is not a single kernel. The output buffer is
+          let chunk_launch ~blocks =
+            { Schedule.grid = max 1 blocks; block = c; shared_bytes = 0 }
+          in
+          if nb = 1 then
+            {
+              kernels =
+                [
+                  {
+                    K.name;
+                    params;
+                    shared = [ sdata ];
+                    body = chunk_scan ~base:(mul K.Block_id (int_lit n)) ~len:(int_lit n);
+                    launch = chunk_launch ~blocks:rows;
+                  };
+                ];
+              scratch = [];
+            }
+          else
+            let sums =
+              { K.name = scratch_name "_sums"; dtype; memspace = K.Global; numel = rows * nb }
+            in
+            (* Pass 1: the grid is (row, chunk) flattened. The last valid
+               element of a chunk is that chunk's inclusive total, which is
+               what pass 2 scans. *)
+            let row = K.Var "row" and blk = K.Var "blk" in
+            let chunks_body =
+              [
+                K.Let { var = "row"; dtype = int_dtype; value = div K.Block_id (int_lit nb) };
+                K.Let
+                  {
+                    var = "blk";
+                    dtype = int_dtype;
+                    value = sub K.Block_id (mul row (int_lit nb));
+                  };
+                K.Let
+                  {
+                    var = "base";
+                    dtype = int_dtype;
+                    value = add (mul row (int_lit n)) (mul blk (int_lit c));
+                  };
+                (* The final chunk of a row is short unless [c] divides [n]. *)
+                K.Let
+                  {
+                    var = "len";
+                    dtype = int_dtype;
+                    value =
+                      (let rest = sub (int_lit n) (mul blk (int_lit c)) in
+                       K.Select (K.Cmp (Expr.Lt, rest, int_lit c), rest, int_lit c));
+                  };
+              ]
+              @ chunk_scan ~base:(K.Var "base") ~len:(K.Var "len")
+              @ [
+                  K.If
+                    {
+                      cond = K.Cmp (Expr.Eq, tid, int_lit 0);
+                      then_ =
+                        [
+                          K.Store
+                            {
+                              buf = sums;
+                              index = K.Block_id;
+                              value = s_at (sub (K.Var "len") (int_lit 1));
+                            };
+                        ];
+                      else_ = [];
+                    };
+                ]
+            in
+            let chunks_kernel =
+              {
+                K.name = name ^ "_chunks";
+                params = ins @ [ sums; out ];
+                shared = [ sdata ];
+                body = chunks_body;
+                launch = chunk_launch ~blocks:(rows * nb);
+              }
+            in
+            (* Pass 2: [nb] chunk totals per row is far too little work to
+               parallelise, so this is the v1 sequential scan body, in
+               place, one thread per row. *)
+            let s_base = mul K.Block_id (int_lit nb) in
+            let sums_kernel =
+              {
+                K.name = name ^ "_sums";
+                params = [ sums ];
+                shared = [];
+                body =
+                  [
+                    K.Let { var = "acc"; dtype; value = identity () };
+                    K.For
+                      {
+                        var = "i";
+                        lo = s_base;
+                        hi = add s_base (int_lit nb);
+                        step = int_lit 1;
+                        body =
+                          [
+                            K.Assign
+                              {
+                                var = "acc";
+                                value =
+                                  combine (K.Var "acc")
+                                    (K.Load { buf = sums; index = K.Var "i" });
+                              };
+                            K.Store { buf = sums; index = K.Var "i"; value = K.Var "acc" };
+                          ];
+                      };
+                  ];
+                launch = Schedule.rows_thread ~rows;
+              }
+            in
+            (* Pass 3: chunk [blk] is missing the total of chunks
+               [0 .. blk-1], which is the INCLUSIVE [sums[row*nb + blk - 1]]
+               -- pass 2 left those totals inclusive on purpose. Chunk 0 is
+               already right. Each element is read and written by the one
+               thread that owns it, so no atomics and no barrier. *)
+            let i = K.Var "i" in
+            let row3 = K.Var "row" in
+            let final_kernel =
+              {
+                K.name;
+                params = [ sums; out ];
+                shared = [];
+                body =
+                  [
+                    K.For
+                      {
+                        var = "i";
+                        lo = K.Global_thread_id;
+                        hi = int_lit (rows * n);
+                        step = K.Global_size;
+                        body =
+                          [
+                            K.Let { var = "row"; dtype = int_dtype; value = div i (int_lit n) };
+                            K.Let
+                              {
+                                var = "blk";
+                                dtype = int_dtype;
+                                value = div (sub i (mul row3 (int_lit n))) (int_lit c);
+                              };
+                            K.If
+                              {
+                                cond = K.Cmp (Expr.Gt, K.Var "blk", int_lit 0);
+                                then_ =
+                                  [
+                                    K.Store
+                                      {
+                                        buf = out;
+                                        index = i;
+                                        value =
+                                          combine
+                                            (K.Load
+                                               {
+                                                 buf = sums;
+                                                 index =
+                                                   sub
+                                                     (add (mul row3 (int_lit nb))
+                                                        (K.Var "blk"))
+                                                     (int_lit 1);
+                                               })
+                                            (K.Load { buf = out; index = i });
+                                      };
+                                  ];
+                                else_ = [];
+                              };
+                          ];
+                      };
+                  ];
+                launch = Schedule.grid_stride ~numel:(rows * n);
+              }
+            in
+            { kernels = [ chunks_kernel; sums_kernel; final_kernel ]; scratch = [ sums ] }
+      (* A root that is two kernels over one buffer. The output buffer is
          written twice: a grid-stride zero fill over the OUTPUT, then a
          grid-stride pass over the SOURCE in which every element lands in
          the output through an atomic add.
@@ -454,7 +775,7 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
               launch = Schedule.grid_stride ~numel:n;
             }
           in
-          [ zero; scatter ]
+          { kernels = [ zero; scatter ]; scratch = [] }
       | Tensor.Param _ ->
           (* Params are uploaded, never computed: [Fusion.kernel_roots]
              excludes them. *)
@@ -467,10 +788,12 @@ let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.
 let program (g : Graph.t) : K.program =
   let plan = Fusion.plan g in
   let bufs = build_buffers plan g in
-  let kernels = List.concat_map (kernels_of plan bufs) (Fusion.kernel_roots plan) in
+  let lowered = List.map (kernels_of plan bufs) (Fusion.kernel_roots plan) in
+  let kernels = List.concat_map (fun l -> l.kernels) lowered in
   (* Alloc order: params first (so uploads can follow in the same order),
      then every other materialised node in topological order. Frees mirror
-     it exactly. *)
+     it exactly. Scratch buffers are NOT in here: they are allocated and
+     freed around the launches of the single root that owns them. *)
   let param_nodes = List.map snd (Graph.params g) in
   let computed =
     List.filter
@@ -483,9 +806,19 @@ let program (g : Graph.t) : K.program =
     List.map (fun (n, p) -> K.Upload { param = n; into = find_buffer bufs p }) (Graph.params g)
   in
   (* Same order as [kernels], which is [Fusion.kernel_roots], which is
-     topological: every input was written by an earlier launch or uploaded. *)
+     topological: every input was written by an earlier launch or uploaded.
+     A root's scratch is bracketed by that root's own launches, so it lives
+     for the shortest window that is correct and every [Launch] argument is
+     still allocated before the launch and freed after it. *)
   let launches =
-    List.map (fun (k : K.kernel) -> K.Launch { kernel = k.K.name; args = k.K.params }) kernels
+    List.concat_map
+      (fun l ->
+        List.map (fun b -> K.Alloc b) l.scratch
+        @ List.map
+            (fun (k : K.kernel) -> K.Launch { kernel = k.K.name; args = k.K.params })
+            l.kernels
+        @ List.map (fun b -> K.Free b) l.scratch)
+      lowered
   in
   (* An output that is a Param has no kernel; it downloads straight from the
      param buffer, which [find_buffer] gives us for free. *)

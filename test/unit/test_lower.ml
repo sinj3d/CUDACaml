@@ -116,12 +116,15 @@ let () =
       let prog = Lower.program ((example "fanout").graph ()) in
       C.int ~expect:4 (List.length prog.kernels);
       C.int ~expect:5 (count is_alloc prog.plan));
-  C.test "scan kernel runs on one thread" (fun () ->
+  (* T21: a row that fits in one chunk is still a single kernel and a single
+     block, but that block is now a whole [Schedule.scan_chunk] of threads
+     running a Hillis-Steele scan instead of one sequential thread. *)
+  C.test "scan kernel runs on one block" (fun () ->
       let x = param "x" Dtype.F32 (vec 10) in
       let g = Graph.create ~name:"g" ~outputs:[ ("p", Tensor.P (scan add ~init:(const Dtype.F32 0.0) x)) ] in
       let k = List.hd (Lower.program g).kernels in
       C.int ~expect:1 k.launch.grid;
-      C.int ~expect:1 k.launch.block);
+      C.int ~expect:Schedule.scan_chunk k.launch.block);
   C.test "output that is a Param: no kernel, download straight from the param buffer" (fun () ->
       let x = param "x" Dtype.F32 (vec 4) in
       let prog = Lower.program (Graph.create ~name:"id" ~outputs:[ ("x", Tensor.P x) ]) in
