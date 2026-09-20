@@ -7,7 +7,9 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `system/test_system.ml` | T28 | replaces `test/system/test_system.ml` |
+
+Nothing is staged: every v2 unit test has been promoted to `test/unit/`, and
+`system/test_system.ml` was promoted by T28, replacing `test/system/test_system.ml`.
 
 Rules: a staged file is edited only by the task that owns it, and only to
 fix a compile error against the interfaces its spec defines (rule 2 in
