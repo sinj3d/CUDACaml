@@ -1,4 +1,4 @@
-open Ocaml_cuda_ir
+open Cudacaml_ir
 open Dsl
 
 module Philox = struct

@@ -26,15 +26,15 @@ DEGREE="${3:-64}"
 
 # --- device -----------------------------------------------------------------
 
-if ! info="$(dune exec ocaml-cuda -- info)"; then
-  echo "bench-record: 'ocaml-cuda info' failed; is there a device, and is" >&2
+if ! info="$(dune exec cudacaml -- info)"; then
+  echo "bench-record: 'cudacaml info' failed; is there a device, and is" >&2
   echo "CUDA_PATH set? Run 'make env' to see what the build resolved." >&2
   exit 1
 fi
 
 card="$(printf '%s\n' "$info" | sed -n 's/^device: //p')"
 if [ -z "$card" ]; then
-  echo "bench-record: no 'device:' line in the output of 'ocaml-cuda info'" >&2
+  echo "bench-record: no 'device:' line in the output of 'cudacaml info'" >&2
   exit 1
 fi
 
@@ -52,8 +52,8 @@ out="bench/results/$slug.md"
 # disagree, and `set -e` makes that abort before anything is written.
 declare -A result
 for dtype in f32 f64; do
-  echo "==> ocaml-cuda-bench $N $REPS $DEGREE $dtype"
-  log="$(dune exec ocaml-cuda-bench -- "$N" "$REPS" "$DEGREE" "$dtype" | tee /dev/stderr)"
+  echo "==> cudacaml-bench $N $REPS $DEGREE $dtype"
+  log="$(dune exec cudacaml-bench -- "$N" "$REPS" "$DEGREE" "$dtype" | tee /dev/stderr)"
   line="$(printf '%s\n' "$log" | grep '^RESULT' || true)"
   if [ -z "$line" ]; then
     echo "bench-record: no RESULT line from the $dtype run" >&2

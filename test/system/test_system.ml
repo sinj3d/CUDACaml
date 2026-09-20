@@ -1,19 +1,19 @@
 (* SYSTEM TESTS, v2. Gated twice:
      1. `make system` only runs after `make unit` is green.
-     2. This binary exits 0 with a SKIP message unless OCAML_CUDA_SYSTEM=1
+     2. This binary exits 0 with a SKIP message unless CUDACAML_SYSTEM=1
         is set AND a CUDA device is present.
    S1–S7 are the v1 suite (S5 now also watches the buffer pool). S8–S20
    cover RNG, AD, rows, matmul, scatter, streams, residents, LSM, pinned
    memory, multi-GPU and the timing table. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
-module Programs = Ocaml_cuda_examples.Programs
-module Bs = Ocaml_cuda_examples.Black_scholes
-module Lsm = Ocaml_cuda_examples.Lsm
+module C = Cudacaml_testlib.Check
+module Programs = Cudacaml_examples.Programs
+module Bs = Cudacaml_examples.Black_scholes
+module Lsm = Cudacaml_examples.Lsm
 module Multi = Backend_cuda.Multi
 
-let gated = Sys.getenv_opt "OCAML_CUDA_SYSTEM" = Some "1"
+let gated = Sys.getenv_opt "CUDACAML_SYSTEM" = Some "1"
 
 let diff ?tolerance g inputs =
   match Differential.check ?tolerance ~reference:(module Backend_interp) ~candidate:(module Backend_cuda) g ~inputs with
@@ -54,7 +54,7 @@ let moments (Value.P v) =
   (m, (!s2 /. float_of_int n) -. (m *. m))
 
 let () =
-  if not gated then (C.skip "OCAML_CUDA_SYSTEM is not 1"; C.run ());
+  if not gated then (C.skip "CUDACAML_SYSTEM is not 1"; C.run ());
   if not (Runtime.Device.available ()) then (C.skip "no CUDA device"; C.run ());
   print_string (Runtime.Device.info_to_string (Runtime.Device.info ()));
   print_newline ();
@@ -66,7 +66,7 @@ let () =
   List.iter
     (fun n ->
       C.test (Printf.sprintf "S2 saxpy n=%d" n) (fun () ->
-          diff (Ocaml_cuda_examples.Saxpy.program ~n ~a:3.0)
+          diff (Cudacaml_examples.Saxpy.program ~n ~a:3.0)
             [ ("x", f32s n float_of_int); ("y", f32s n (fun i -> float_of_int (n - i))) ]))
     [ 0; 1; 255; 256; 257; 1009; 300_000 ];
   C.test "S3 sum of 4M elements (two-kernel reduce)" (fun () ->
@@ -79,7 +79,7 @@ let () =
       diff (e.graph ()) (e.inputs ()));
   C.test "S5 run the same compiled saxpy 50 times; pool is stable" (fun () ->
       let n = 4096 in
-      let c = Backend_cuda.compile (Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0) in
+      let c = Backend_cuda.compile (Cudacaml_examples.Saxpy.program ~n ~a:2.0) in
       let l = live () in
       for k = 1 to 50 do
         let inputs = [ ("x", f32s n (fun i -> float_of_int (i + k))); ("y", f32s n (fun _ -> 1.0)) ] in
@@ -94,7 +94,7 @@ let () =
       diff (Graph.create ~name:"i32" ~outputs:(one "r" r)) [ ("x", i32s 9 Int32.of_int) ]);
   C.test "S7 timing saxpy n=2^24 (informational)" (fun () ->
       let n = 1 lsl 24 in
-      let g = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+      let g = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
       let inputs = [ ("x", f32s n float_of_int); ("y", f32s n (fun _ -> 1.0)) ] in
       let ci = Backend_interp.compile g and cc = Backend_cuda.compile g in
       let _, t_interp = time (fun () -> Backend_interp.run ci ~inputs) in
@@ -156,7 +156,7 @@ let () =
       Backend_cuda.release c);
   C.test "S15 16 async jobs on 4 streams equal the sync results" (fun () ->
       let n = 1 lsl 16 in
-      let g = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+      let g = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
       let c = Backend_cuda.compile_with ~streams:4 g in
       let inputs k = [ ("x", f32s n (fun i -> float_of_int ((i + k) mod 1000))); ("y", f32s n (fun _ -> 1.0)) ] in
       let jobs = List.init 16 (fun k -> (k, Backend_cuda.run_async c ~inputs:(inputs k))) in
@@ -203,7 +203,7 @@ let () =
       done);
   C.test "S19 Multi [0;0] equals single device; [0;1] when available" (fun () ->
       let n = 1 lsl 16 in
-      let saxpy ~n = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+      let saxpy ~n = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
       let inputs = [ ("x", f32s n float_of_int); ("y", f32s n (fun _ -> 1.0)) ] in
       let c = Backend_cuda.compile (saxpy ~n) in
       let single = Backend_cuda.run c ~inputs in

@@ -4,5 +4,5 @@
 ; machine-readable RESULT line for scripts/bench-record.sh.
 (executable
  (name bench)
- (public_name ocaml-cuda-bench)
- (libraries ocaml_cuda ocaml_cuda_examples unix))
+ (public_name cudacaml-bench)
+ (libraries cudacaml cudacaml_examples unix))

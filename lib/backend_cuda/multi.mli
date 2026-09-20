@@ -6,10 +6,10 @@
     under that device's own context.
 
     Everything that touches the driver here goes through
-    {!Ocaml_cuda_runtime.Device.with_device}, because a buffer allocated
+    {!Cudacaml_runtime.Device.with_device}, because a buffer allocated
     under one device's context is not a valid pointer under another's. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type t
 

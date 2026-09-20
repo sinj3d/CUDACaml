@@ -3,7 +3,7 @@
     A pure pretty-printer: no decisions, no optimisation. If a choice has to
     be made here, it belongs in [Lower] or [Schedule] instead. *)
 
-open Ocaml_cuda_lower
+open Cudacaml_lower
 
 val program : Kernel_ir.program -> string
 

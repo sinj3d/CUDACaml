@@ -1,6 +1,6 @@
 (* Value. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
+open Cudacaml
+module C = Cudacaml_testlib.Check
 
 let () =
   C.test "create zero-fills and sizes" (fun () ->

@@ -6,6 +6,6 @@
     plan: allocate, upload params, launch in topological order, download
     outputs, free. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 val program : Graph.t -> Kernel_ir.program

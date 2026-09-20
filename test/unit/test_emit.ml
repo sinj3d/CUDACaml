@@ -1,6 +1,6 @@
 (* Mangle + Emit. String-level checks; no GPU, no compiler. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
+open Cudacaml
+module C = Cudacaml_testlib.Check
 module K = Kernel_ir
 module E = Backend_cuda.Emit
 
@@ -79,12 +79,12 @@ let () =
       C.bool ~expect:true (balanced s));
   C.test "program emits every kernel of a lowered example and balances parens" (fun () ->
       List.iter
-        (fun (e : Ocaml_cuda_examples.Programs.t) ->
+        (fun (e : Cudacaml_examples.Programs.t) ->
           let prog = Lower.program (e.graph ()) in
           let src = E.program prog in
           List.iter (fun (k : K.kernel) -> C.contains ~sub:("void " ^ k.name ^ "(") src) prog.kernels;
           C.bool ~expect:true (balanced src))
-        Ocaml_cuda_examples.Programs.all);
+        Cudacaml_examples.Programs.all);
   C.test "mangle: reserved words and illegal characters, stable" (fun () ->
       let m = Backend_cuda.Mangle.create () in
       let a = Backend_cuda.Mangle.identifier m "float" in

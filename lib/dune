@@ -1,13 +1,13 @@
 (library
- (name ocaml_cuda)
- (public_name ocaml_cuda)
+ (name cudacaml)
+ (public_name cudacaml)
  (libraries
-  ocaml_cuda_ir
-  ocaml_cuda_rng
-  ocaml_cuda_ad
-  ocaml_cuda_passes
-  ocaml_cuda_lower
-  ocaml_cuda_runtime
-  ocaml_cuda_backend
-  ocaml_cuda_backend_interp
-  ocaml_cuda_backend_cuda))
+  cudacaml_ir
+  cudacaml_rng
+  cudacaml_ad
+  cudacaml_passes
+  cudacaml_lower
+  cudacaml_runtime
+  cudacaml_backend
+  cudacaml_backend_interp
+  cudacaml_backend_cuda))

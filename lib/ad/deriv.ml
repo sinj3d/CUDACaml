@@ -11,7 +11,7 @@
       [fconst] provides. Every other dtype raises, which is exactly the
       contract [d] advertises. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 (* ------------------------------------------------------------------ *)
 (* Literals at an element type                                          *)

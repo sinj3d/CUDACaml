@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# brev.dev bootstrap for ocaml-cuda.
+# brev.dev bootstrap for CUDACaml.
 #
 # Takes a fresh Ubuntu 22.04 / 24.04 GPU box (an A100 on brev.dev is the case
 # this was written for) from empty to a checkout where
@@ -18,20 +18,20 @@
 #
 # Knobs, all optional -- a fork should never need the script edited:
 #
-#     OCAML_CUDA_REPO          git URL to clone   (default: this project)
-#     OCAML_CUDA_DIR           where to clone it  (default: ~/ocaml-cuda)
-#     OCAML_CUDA_SWITCH        opam switch name   (default: ocaml-cuda)
-#     OCAML_CUDA_OCAML         compiler version   (default: 5.4.0)
-#     OCAML_CUDA_CUDA_RUNFILE  12.9 installer URL, for the 13.x fallback
+#     CUDACAML_REPO          git URL to clone   (default: this project)
+#     CUDACAML_DIR           where to clone it  (default: ~/cudacaml)
+#     CUDACAML_SWITCH        opam switch name   (default: cudacaml)
+#     CUDACAML_OCAML         compiler version   (default: 5.4.0)
+#     CUDACAML_CUDA_RUNFILE  12.9 installer URL, for the 13.x fallback
 #
 set -euo pipefail
 
-REPO_URL="${OCAML_CUDA_REPO:-https://github.com/sinj3d/ocaml-cuda}"
-REPO_DIR="${OCAML_CUDA_DIR:-$HOME/ocaml-cuda}"
-SWITCH="${OCAML_CUDA_SWITCH:-ocaml-cuda}"
-OCAML_VERSION="${OCAML_CUDA_OCAML:-5.4.0}"
+REPO_URL="${CUDACAML_REPO:-https://github.com/sinj3d/CUDACaml}"
+REPO_DIR="${CUDACAML_DIR:-$HOME/cudacaml}"
+SWITCH="${CUDACAML_SWITCH:-cudacaml}"
+OCAML_VERSION="${CUDACAML_OCAML:-5.4.0}"
 CUDA_FALLBACK_PREFIX="$HOME/cuda-12.9"
-CUDA_RUNFILE_URL="${OCAML_CUDA_CUDA_RUNFILE:-https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda_12.9.0_575.51.03_linux.run}"
+CUDA_RUNFILE_URL="${CUDACAML_CUDA_RUNFILE:-https://developer.download.nvidia.com/compute/cuda/12.9.0/local_installers/cuda_12.9.0_575.51.03_linux.run}"
 
 APT_PACKAGES="build-essential git m4 pkg-config libffi-dev opam unzip bubblewrap curl"
 

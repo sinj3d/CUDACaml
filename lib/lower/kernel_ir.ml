@@ -8,7 +8,7 @@
     Hardcaml analogue: [Rtl_ast], the language-neutral form that both the
     Verilog and VHDL printers consume. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type memspace = Global | Shared
 

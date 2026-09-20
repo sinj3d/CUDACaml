@@ -1,8 +1,8 @@
 (* Deriv. Every rule is checked against a central finite difference on
    the interpreter in F64; structural checks pin the simplifier. No GPU. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs
 let vec n = Shape.of_dims [ n ]

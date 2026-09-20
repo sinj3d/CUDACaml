@@ -1,9 +1,9 @@
 (* Grid-wide reduce and parallel scan, structural. No GPU. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 module K = Kernel_ir
-module Programs = Ocaml_cuda_examples.Programs
+module Programs = Cudacaml_examples.Programs
 
 let vec n = Shape.of_dims [ n ]
 let zero = const Dtype.F32 0.0
@@ -106,5 +106,5 @@ let () =
   C.test "every example lowers to a well-formed plan" (fun () ->
       List.iter (fun (e : Programs.t) -> well_formed (Lower.program (e.graph ())).plan) Programs.all);
   C.test "saxpy is still two kernels" (fun () ->
-      C.int ~expect:2 (List.length (Lower.program (Ocaml_cuda_examples.Saxpy.program ~n:1000 ~a:2.0)).kernels));
+      C.int ~expect:2 (List.length (Lower.program (Cudacaml_examples.Saxpy.program ~n:1000 ~a:2.0)).kernels));
   C.run ()

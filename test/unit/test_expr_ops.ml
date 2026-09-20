@@ -1,9 +1,9 @@
 (* Bit ops, shifts, Sin/Cos/Erf/Erfinv, and the missing comparison /
    logic surface. Integer results are exact; float results in F64 are
    checked tightly. No GPU: emit checks look at the generated source. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs
 let vec n = Shape.of_dims [ n ]

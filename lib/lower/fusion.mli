@@ -6,7 +6,7 @@
     map-map, map-map2 and map-into-reduce fusion without adding an n-ary
     node to the IR. The only decision is which nodes get materialised. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type plan
 

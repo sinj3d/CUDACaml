@@ -6,7 +6,7 @@
     gradients. Every adjoint is built from [Dsl] calls only, so no new node
     kind appears and both backends run the result unchanged. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 exception Not_differentiable of string
 (** A node on a path from a [wrt] param to [output] has no adjoint rule.

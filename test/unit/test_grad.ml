@@ -1,7 +1,7 @@
 (* Grad.grad against bump-and-revalue on the interpreter, F64. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs
 let vec n = Shape.of_dims [ n ]

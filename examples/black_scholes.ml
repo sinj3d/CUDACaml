@@ -18,7 +18,7 @@
 
     Every price is checked against {!analytic}, the closed form. *)
 
-open Ocaml_cuda
+open Cudacaml
 
 type market = {
   s0 : float;

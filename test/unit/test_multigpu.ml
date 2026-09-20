@@ -1,10 +1,10 @@
 (* Device selection and the data-parallel driver. GPU-dependent; the
    true multi-device assertions run only when two or more devices exist. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 module Multi = Backend_cuda.Multi
-module Bs = Ocaml_cuda_examples.Black_scholes
+module Bs = Cudacaml_examples.Black_scholes
 
 let vec n = Shape.of_dims [ n ]
 let f32s n f = Value.P (Value.of_list Dtype.F32 (vec n) (List.init n f))
@@ -15,7 +15,7 @@ let floats (Value.P v) : float list =
 
 let ints (Value.P v) : int32 list = match Value.dtype v with Dtype.I32 -> Value.to_list v | _ -> C.fail "dtype"
 let scalar o name = List.hd (floats (List.assoc name o))
-let saxpy ~n = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0
+let saxpy ~n = Cudacaml_examples.Saxpy.program ~n ~a:2.0
 
 (* i32 program with negative division, as in S6 *)
 let i32_prog ~n =

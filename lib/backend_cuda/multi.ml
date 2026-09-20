@@ -9,9 +9,9 @@
    freeing -- is wrapped in [Device.with_device], and nothing in between
    touches the driver. *)
 
-open Ocaml_cuda_ir
-open Ocaml_cuda_lower
-open Ocaml_cuda_runtime
+open Cudacaml_ir
+open Cudacaml_lower
+open Cudacaml_runtime
 
 (* One device's share of the work: the ordinal it runs on and the
    executor that owns its buffers, its module and its stream. All three
@@ -137,7 +137,7 @@ let create ~devices ~n build =
            repeated ordinal it keeps the two lanes from serialising on the
            NULL stream. *)
         Device.with_device ordinal (fun () ->
-            let program = build ~n:per |> Ocaml_cuda_passes.Pipeline.run |> Lower.program in
+            let program = build ~n:per |> Cudacaml_passes.Pipeline.run |> Lower.program in
             let module_ = Jit.compile ~name:program.name ~source:(Emit.program program) in
             { ordinal; exec = Executor.create_on ~stream:(Stream.create ()) program module_ }))
       (Array.of_list devices)

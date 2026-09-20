@@ -1,7 +1,7 @@
 (* Persistent executor. GPU-dependent; skips without one. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
-module Programs = Ocaml_cuda_examples.Programs
+open Cudacaml
+module C = Cudacaml_testlib.Check
+module Programs = Cudacaml_examples.Programs
 
 let vec n = Shape.of_dims [ n ]
 let f32s n f = Value.P (Value.of_list Dtype.F32 (vec n) (List.init n f))
@@ -21,7 +21,7 @@ let first_elem o name = match List.assoc name o with Value.P v -> get_f32 (Value
 let () =
   if not (Runtime.Device.available ()) then (C.skip "no CUDA device"; C.run ());
   let n = 4096 in
-  let saxpy = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+  let saxpy = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
   let inputs k = [ ("x", f32s n (fun i -> float_of_int (i + k))); ("y", f32s n (fun _ -> 1.0)) ] in
   let expect k = List.fold_left ( +. ) 0.0 (List.init n (fun i -> (2.0 *. float_of_int (i + k)) +. 1.0)) in
   C.test "buffers are allocated at compile and stable across 50 runs" (fun () ->

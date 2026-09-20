@@ -1,4 +1,4 @@
 (executable
  (name main)
- (public_name ocaml-cuda)
- (libraries ocaml_cuda ocaml_cuda_examples))
+ (public_name cudacaml)
+ (libraries cudacaml cudacaml_examples))

@@ -5,4 +5,4 @@
     user wrote it, so it is the oracle that [Pipeline] and [Backend_cuda]
     are both checked against. Speed is a non-goal. *)
 
-include Ocaml_cuda_backend.Backend.S
+include Cudacaml_backend.Backend.S

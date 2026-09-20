@@ -17,7 +17,7 @@
     [Graph.outputs]. Lowering is therefore deterministic, and it never
     mutates the graph. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 module K = Kernel_ir
 
 (* ------------------------------------------------------------------ *)

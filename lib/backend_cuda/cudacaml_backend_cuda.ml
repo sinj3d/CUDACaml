@@ -1,6 +1,6 @@
-open Ocaml_cuda_ir
-open Ocaml_cuda_lower
-open Ocaml_cuda_runtime
+open Cudacaml_ir
+open Cudacaml_lower
+open Cudacaml_runtime
 module Emit = Emit
 module Mangle = Mangle
 module Executor = Executor
@@ -20,7 +20,7 @@ type compiled = {
   device : int;  (** the ordinal every buffer, module and stream below belongs to *)
 }
 
-let source graph = graph |> Ocaml_cuda_passes.Pipeline.run |> Lower.program |> Emit.program
+let source graph = graph |> Cudacaml_passes.Pipeline.run |> Lower.program |> Emit.program
 
 (* A CUDA module is loaded into one context and an executor's buffers and
    streams belong to one context, so the whole build happens under the
@@ -30,7 +30,7 @@ let source graph = graph |> Ocaml_cuda_passes.Pipeline.run |> Lower.program |> E
 let compile_on ~device ?(streams = 1) graph =
   if streams < 1 then invalid_arg "Backend_cuda.compile_on: streams must be >= 1";
   Device.with_device device (fun () ->
-      let program = graph |> Ocaml_cuda_passes.Pipeline.run |> Lower.program in
+      let program = graph |> Cudacaml_passes.Pipeline.run |> Lower.program in
       let module_ = Jit.compile ~name:program.name ~source:(Emit.program program) in
       (* Executor 0 stays on the NULL stream so a single-stream [compiled] is
          bit-for-bit the v1 arrangement; the rest get non-blocking streams,

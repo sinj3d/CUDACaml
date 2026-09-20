@@ -4,7 +4,7 @@
     the Black-Scholes entries added in v2 use broadcasting, the RNG and the
     reverse-mode gradient transform. *)
 
-open Ocaml_cuda
+open Cudacaml
 open Dsl
 
 type t = {

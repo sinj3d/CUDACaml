@@ -30,14 +30,14 @@ violation is a build error, not a code-review catch.
 
 | # | Library | Modules | Owns |
 |---|---|---|---|
-| 1 | `ocaml_cuda.ir` | `Uid` `Dtype` `Shape` `Expr` `Tensor` `Value` `Graph` `Dsl` | The IR and the user-facing surface. Types are public variants; passes match on them exhaustively. |
-| 2 | `ocaml_cuda.passes` | `Pass` `Layout` `Pipeline` | Graph → Graph rewrites. Pure. Semantics-preserving as judged by the interpreter. |
-| 3 | `ocaml_cuda.lower` | `Fusion` `Schedule` `Kernel_ir` `Lower` | Graph → imperative kernels + host plan. `Fusion` is an *analysis* (which nodes get a buffer); `Lower` inlines everything else. **Every performance decision is made here** and is visible in `Kernel_ir`. |
-| 4 | `ocaml_cuda.runtime` | `Device` `Buffer` `Jit` `Launch` | Bytes, pointers, PTX strings, kernel handles. IR-agnostic. Wraps `cudajit`. |
-| 5 | `ocaml_cuda.backend` | `Backend` `Differential` | The executor signature and the correctness harness. |
-| 5 | `ocaml_cuda.backend_interp` | (one module) | Reference evaluator. Runs the *unoptimised* graph. |
-| 5 | `ocaml_cuda.backend_cuda` | `Emit` `Mangle` `Executor` + main | Pipeline → Lower → Emit → Jit; Executor per run. |
-| — | `ocaml_cuda` | umbrella | Flat namespace for users. |
+| 1 | `cudacaml.ir` | `Uid` `Dtype` `Shape` `Expr` `Tensor` `Value` `Graph` `Dsl` | The IR and the user-facing surface. Types are public variants; passes match on them exhaustively. |
+| 2 | `cudacaml.passes` | `Pass` `Layout` `Pipeline` | Graph → Graph rewrites. Pure. Semantics-preserving as judged by the interpreter. |
+| 3 | `cudacaml.lower` | `Fusion` `Schedule` `Kernel_ir` `Lower` | Graph → imperative kernels + host plan. `Fusion` is an *analysis* (which nodes get a buffer); `Lower` inlines everything else. **Every performance decision is made here** and is visible in `Kernel_ir`. |
+| 4 | `cudacaml.runtime` | `Device` `Buffer` `Jit` `Launch` | Bytes, pointers, PTX strings, kernel handles. IR-agnostic. Wraps `cudajit`. |
+| 5 | `cudacaml.backend` | `Backend` `Differential` | The executor signature and the correctness harness. |
+| 5 | `cudacaml.backend_interp` | (one module) | Reference evaluator. Runs the *unoptimised* graph. |
+| 5 | `cudacaml.backend_cuda` | `Emit` `Mangle` `Executor` + main | Pipeline → Lower → Emit → Jit; Executor per run. |
+| — | `cudacaml` | umbrella | Flat namespace for users. |
 
 ## The interfaces that matter
 

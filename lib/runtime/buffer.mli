@@ -1,7 +1,7 @@
 (** Device memory. A [t] is an opaque device pointer plus a byte count;
     the only way data moves between host and device. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type t
 

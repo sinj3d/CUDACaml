@@ -1,4 +1,4 @@
 (library
- (name ocaml_cuda_passes)
- (public_name ocaml_cuda.passes)
- (libraries ocaml_cuda_ir))
+ (name cudacaml_passes)
+ (public_name cudacaml.passes)
+ (libraries cudacaml_ir))

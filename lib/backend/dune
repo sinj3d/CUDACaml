@@ -1,4 +1,4 @@
 (library
- (name ocaml_cuda_backend)
- (public_name ocaml_cuda.backend)
- (libraries ocaml_cuda_ir))
+ (name cudacaml_backend)
+ (public_name cudacaml.backend)
+ (libraries cudacaml_ir))

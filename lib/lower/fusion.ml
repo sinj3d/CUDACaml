@@ -10,7 +10,7 @@
     by [Uid.to_int], and no hash-table iteration order reaches an output:
     [roots] is built by walking the topological order. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type plan = { materialized : (int, unit) Hashtbl.t; roots : Tensor.packed list }
 

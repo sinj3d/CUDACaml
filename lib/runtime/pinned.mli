@@ -12,7 +12,7 @@
     machine with no [libcuda.so.1] the module still loads, and only a
     call fails. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 (** A host [Value] in page-locked memory from [cuMemHostAlloc] with
     [CU_MEMHOSTALLOC_PORTABLE], zero-filled like {!Value.create}. Freed by

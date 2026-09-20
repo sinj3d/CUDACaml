@@ -1,9 +1,9 @@
 (** The CUDA backend: [Pipeline] -> [Lower] -> [Emit] -> [Jit], then
     [Executor] per run. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
-include Ocaml_cuda_backend.Backend.S
+include Cudacaml_backend.Backend.S
 
 (** The generated CUDA C++ for a graph, without compiling it. What the CLI
     prints and what golden tests snapshot. *)
@@ -24,7 +24,7 @@ val executor : compiled -> Executor.t
     stream, each with its own buffer pool. Jobs go round-robin, so the
     uploads of job [k+1] can overlap the kernels of job [k].
     [compile = compile_with ~streams:1], and [run] always uses lane 0 and
-    waits, so {!Ocaml_cuda_backend.Backend.S} semantics are unchanged. *)
+    waits, so {!Cudacaml_backend.Backend.S} semantics are unchanged. *)
 val compile_with : streams:int -> Graph.t -> compiled
 
 (** {1 Device selection}
@@ -59,7 +59,7 @@ val wait : job -> (string * Value.packed) list
     it. *)
 
 type resident = {
-  buf : Ocaml_cuda_runtime.Buffer.t;
+  buf : Cudacaml_runtime.Buffer.t;
   dtype : Dtype.packed;
   shape : Shape.t;
 }

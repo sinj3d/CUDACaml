@@ -33,11 +33,11 @@
    a DMA. Which class is in use is printed, and reported as hostmem= on
    the RESULT line.
 
-   usage: ocaml-cuda-bench [n] [reps] [degree] [f32|f64] [--pinned]
+   usage: cudacaml-bench [n] [reps] [degree] [f32|f64] [--pinned]
           (defaults 1<<24, 5, 64, f32, pageable) *)
 
-open Ocaml_cuda
-module Bs = Ocaml_cuda_examples.Black_scholes
+open Cudacaml
+module Bs = Cudacaml_examples.Black_scholes
 
 let time f =
   let t0 = Unix.gettimeofday () in
@@ -110,7 +110,7 @@ let poly_graph ~dt ~n ~c =
   Graph.create ~name:"poly"
     ~outputs:[ ("r", Tensor.P acc); ("s", Tensor.P (reduce add ~init:(const dt 0.0) acc)) ]
 
-(* The shape of [Ocaml_cuda_examples.Saxpy.program], but at the requested
+(* The shape of [Cudacaml_examples.Saxpy.program], but at the requested
    dtype: the example is fixed at F32 and the point here is to vary it. *)
 let saxpy_graph ~dt ~n ~a =
   let open Dsl in
@@ -178,7 +178,7 @@ let report label n dtype flops_per_elem t_van t_cuda t_compile kernels =
 (* ------------------------------------------------------------------- main *)
 
 let usage () =
-  Printf.eprintf "usage: ocaml-cuda-bench [n] [reps] [degree] [f32|f64] [--pinned]\n%!"
+  Printf.eprintf "usage: cudacaml-bench [n] [reps] [degree] [f32|f64] [--pinned]\n%!"
 
 let () =
   (* Flags may sit anywhere; the positional arguments keep their places

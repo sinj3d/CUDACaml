@@ -4,7 +4,7 @@
     mutated. Every pass must preserve program semantics as observed by the
     reference interpreter; [Differential] is how that is checked. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 module type S = sig
   val name : string

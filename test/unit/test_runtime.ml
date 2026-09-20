@@ -1,8 +1,8 @@
 (* Runtime over cudajit. SKIPS without a device; never fails for lack
    of one. With a device it runs a hand-written kernel end to end, which is
    the single most important de-risking test in the project. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
+open Cudacaml
+module C = Cudacaml_testlib.Check
 module Rt = Runtime
 
 let src =

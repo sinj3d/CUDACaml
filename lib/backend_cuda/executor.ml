@@ -1,6 +1,6 @@
-open Ocaml_cuda_ir
-open Ocaml_cuda_lower
-open Ocaml_cuda_runtime
+open Cudacaml_ir
+open Cudacaml_lower
+open Cudacaml_runtime
 
 let buffer_bytes (b : Kernel_ir.buffer) =
   match b.dtype with Dtype.P d -> b.numel * Dtype.size_in_bytes d

@@ -1,6 +1,6 @@
 (* Device.info and its rendering. GPU-dependent; skips without one. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
+open Cudacaml
+module C = Cudacaml_testlib.Check
 
 let lines s = String.split_on_char '\n' (String.trim s)
 let starts_with ~prefix s = String.length s >= String.length prefix && String.sub s 0 (String.length prefix) = prefix

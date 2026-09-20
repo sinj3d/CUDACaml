@@ -21,7 +21,7 @@
     run the identical program. Everything is F64: the regression is a
     difference of large numbers and f32 reassociation would show. *)
 
-open Ocaml_cuda
+open Cudacaml
 
 (* ------------------------------------------------------------------ *)
 (* Host-side references                                                *)

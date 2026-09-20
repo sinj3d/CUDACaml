@@ -1,7 +1,7 @@
 (** Run the same graph on two backends and compare outputs elementwise.
     The correctness harness for every pass and every backend. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 val check :
   ?tolerance:float ->

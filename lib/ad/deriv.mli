@@ -5,7 +5,7 @@
     placeholders. Nothing in this module knows about tensors, graphs or
     devices, and the interpreter does not depend on it. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 (** [d e ~wrt] = ∂e/∂(Arg wrt), as an expression over the same Args.
     [e] must have a float dtype ([Dtype.is_float]); [Invalid_argument]

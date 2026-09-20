@@ -1,7 +1,7 @@
 (* Graph + Dsl validation. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let shape = Shape.of_dims [ 8 ]
 let uid t = Uid.to_int (Tensor.uid (Tensor.P t))

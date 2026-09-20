@@ -15,7 +15,7 @@
       operand after [Dtype.equal] has produced a witness -- or, between two
       float dtypes, after an explicit [Dsl.cast]. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 exception Not_differentiable of string
 

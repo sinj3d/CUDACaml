@@ -1,6 +1,6 @@
 # Benchmark results
 
-One Markdown file per card, named after the device: the name `ocaml-cuda info`
+One Markdown file per card, named after the device: the name `cudacaml info`
 prints, lower-cased, with every run of non-alphanumerics replaced by a dash.
 
 ```
@@ -13,7 +13,7 @@ which appends a dated section per run and never overwrites one. A file is
 therefore a history: one section per commit worth recording, oldest first.
 
 Each section carries the date, the commit, the shape of the run, the four
-lines of `ocaml-cuda info`, and a two-row table — one row per precision.
+lines of `cudacaml info`, and a two-row table — one row per precision.
 
 ## The columns
 

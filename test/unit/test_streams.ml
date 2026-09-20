@@ -1,9 +1,9 @@
 (* Streams, events, async runs, resident values. GPU-dependent. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
-module Programs = Ocaml_cuda_examples.Programs
-module Lsm = Ocaml_cuda_examples.Lsm
-module Bs = Ocaml_cuda_examples.Black_scholes
+open Cudacaml
+module C = Cudacaml_testlib.Check
+module Programs = Cudacaml_examples.Programs
+module Lsm = Cudacaml_examples.Lsm
+module Bs = Cudacaml_examples.Black_scholes
 
 let vec n = Shape.of_dims [ n ]
 let f32s n f = Value.P (Value.of_list Dtype.F32 (vec n) (List.init n f))
@@ -23,7 +23,7 @@ let time f =
 let () =
   if not (Runtime.Device.available ()) then (C.skip "no CUDA device"; C.run ());
   let n = 4096 in
-  let saxpy = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+  let saxpy = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
   let inputs k = [ ("x", f32s n (fun i -> float_of_int (i + k))); ("y", f32s n (fun _ -> 1.0)) ] in
   C.test "streams and events" (fun () ->
       let s = Runtime.Stream.create () in
@@ -84,7 +84,7 @@ let () =
       C.int ~expect:before (live ()));
   C.test "informational: 16 sync vs 16 async runs on 4 streams" (fun () ->
       let n = 1 lsl 22 in
-      let g = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+      let g = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
       let ins = [ ("x", f32s n float_of_int); ("y", f32s n (fun _ -> 1.0)) ] in
       let c1 = Backend_cuda.compile g and c4 = Backend_cuda.compile_with ~streams:4 g in
       ignore (Backend_cuda.run c1 ~inputs:ins);

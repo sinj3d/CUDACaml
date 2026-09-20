@@ -7,9 +7,9 @@
     issued on it, so the plan is ordered by the stream rather than by the
     host, and executors on different streams overlap. *)
 
-open Ocaml_cuda_ir
-open Ocaml_cuda_lower
-open Ocaml_cuda_runtime
+open Cudacaml_ir
+open Cudacaml_lower
+open Cudacaml_runtime
 
 type t
 

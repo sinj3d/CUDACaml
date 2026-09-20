@@ -1,7 +1,7 @@
 (* Last-axis Reduce/Scan, reduce_rows / scan_rows / transpose. No GPU. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 module K = Kernel_ir
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs

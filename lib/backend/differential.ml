@@ -1,4 +1,4 @@
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 (* Two NaNs count as equal; otherwise a relative-plus-absolute band, so a
    four-million-element float sum is judged on its magnitude rather than on

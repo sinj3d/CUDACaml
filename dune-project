@@ -1,9 +1,9 @@
 (lang dune 3.0)
-(name ocaml_cuda)
+(name cudacaml)
 (generate_opam_files true)
 
 (package
- (name ocaml_cuda)
+ (name cudacaml)
  (synopsis "An embedded array DSL in OCaml that compiles to CUDA")
  (depends
   (ocaml (>= 5.1))

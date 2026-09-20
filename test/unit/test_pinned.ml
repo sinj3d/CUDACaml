@@ -1,6 +1,6 @@
 (* Pinned host memory and Value.of_raw. GPU-dependent. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
+open Cudacaml
+module C = Cudacaml_testlib.Check
 
 let vec n = Shape.of_dims [ n ]
 
@@ -44,7 +44,7 @@ let () =
       C.floats ~tol:0.0 ~expect:(Value.to_list src) (Value.to_list dst));
   C.test "pinned inputs through run and run_async" (fun () ->
       let n = 4096 in
-      let g = Ocaml_cuda_examples.Saxpy.program ~n ~a:2.0 in
+      let g = Cudacaml_examples.Saxpy.program ~n ~a:2.0 in
       let x = Runtime.Pinned.alloc Dtype.F32 (vec n) and y = Runtime.Pinned.alloc Dtype.F32 (vec n) in
       for i = 0 to n - 1 do Value.set x i (float_of_int i); Value.set y i 1.0 done;
       let inputs = [ ("x", Value.P x); ("y", Value.P y) ] in

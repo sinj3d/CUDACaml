@@ -1,7 +1,7 @@
 (* Fusion analysis. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let vec n = Shape.of_dims [ n ]
 let mat plan t = Fusion.is_materialized plan (Tensor.P t)

@@ -6,11 +6,11 @@
      check <example>  Differential.check interp vs cuda
      info             print the device description *)
 
-open Ocaml_cuda
-module Programs = Ocaml_cuda_examples.Programs
+open Cudacaml
+module Programs = Cudacaml_examples.Programs
 
 let usage () =
-  prerr_endline "usage: ocaml-cuda (list | info | emit|dot|run|check <example>)";
+  prerr_endline "usage: cudacaml (list | info | emit|dot|run|check <example>)";
   exit 2
 
 let example name =

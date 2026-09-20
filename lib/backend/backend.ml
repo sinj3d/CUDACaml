@@ -8,7 +8,7 @@
     simulator and out-of-tree [Hardcaml_c] / [Hardcaml_verilator]. One IR,
     many executors, and [Differential] to keep them honest. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 module type S = sig
   val name : string

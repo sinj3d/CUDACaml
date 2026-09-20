@@ -4,7 +4,7 @@
     into one kernel, and the [reduce] is a second kernel with its own
     schedule. *)
 
-open Ocaml_cuda
+open Cudacaml
 open Dsl
 
 let program ~n ~a =

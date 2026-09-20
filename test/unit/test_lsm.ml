@@ -1,8 +1,8 @@
 (* Longstaff–Schwartz American put on the interpreter backend. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
-module Lsm = Ocaml_cuda_examples.Lsm
-module Bs = Ocaml_cuda_examples.Black_scholes
+open Cudacaml
+module C = Cudacaml_testlib.Check
+module Lsm = Cudacaml_examples.Lsm
+module Bs = Cudacaml_examples.Black_scholes
 
 let compiles = ref 0
 

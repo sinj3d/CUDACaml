@@ -6,7 +6,7 @@
    a CPU-only box -- must still be able to *load* this module, and only
    fail if something actually asks it for pinned memory. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 (* CU_MEMHOSTALLOC_PORTABLE: page-locked for every context in the process,
    not only for the one that happened to be current at allocation. *)

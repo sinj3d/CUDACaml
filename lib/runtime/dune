@@ -3,9 +3,9 @@
 ; (driver API + NVRTC). Until then every function raises, so the rest of
 ; the project builds and tests on a machine with no GPU.
 (library
- (name ocaml_cuda_runtime)
- (public_name ocaml_cuda.runtime)
+ (name cudacaml_runtime)
+ (public_name cudacaml.runtime)
  ; [ctypes] and [ctypes.foreign] are for lib/runtime/pinned.ml, which binds
  ; cuMemHostAlloc / cuMemFreeHost by hand: cudajit 0.7 does not expose them.
  ; Both already come in with cudajit, so this adds no opam dependency.
- (libraries ocaml_cuda_ir cudajit.cuda cudajit.nvrtc ctypes ctypes.foreign))
+ (libraries cudacaml_ir cudajit.cuda cudajit.nvrtc ctypes ctypes.foreign))

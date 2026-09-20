@@ -1,8 +1,8 @@
 (* Rng. Known-answer vectors pin Philox bit for bit; statistics pin the
    uniform/normal mappings. Everything on the interpreter, deterministic. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 module K = Kernel_ir
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs

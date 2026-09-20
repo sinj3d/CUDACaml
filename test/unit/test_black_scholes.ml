@@ -1,9 +1,9 @@
 (* Black–Scholes Monte Carlo and pathwise Greeks on the interpreter,
    F64, fixed seed. Every expected value is the closed form. *)
-open Ocaml_cuda
-module C = Ocaml_cuda_testlib.Check
-module Bs = Ocaml_cuda_examples.Black_scholes
-module Programs = Ocaml_cuda_examples.Programs
+open Cudacaml
+module C = Cudacaml_testlib.Check
+module Bs = Cudacaml_examples.Black_scholes
+module Programs = Cudacaml_examples.Programs
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs
 let dtype = Dtype.F64

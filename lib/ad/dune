@@ -1,4 +1,4 @@
 (library
- (name ocaml_cuda_ad)
- (public_name ocaml_cuda.ad)
- (libraries ocaml_cuda_ir))
+ (name cudacaml_ad)
+ (public_name cudacaml.ad)
+ (libraries cudacaml_ir))

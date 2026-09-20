@@ -1,9 +1,9 @@
 (* Backend_interp, the oracle. Every expected value here is computed by
    hand; do NOT replace any of them with a value produced by the code under
    test. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 
 let run g inputs = Backend_interp.run (Backend_interp.compile g) ~inputs
 let vec n = Shape.of_dims [ n ]
@@ -116,6 +116,6 @@ let () =
       C.raises (fun () -> ignore (run g [ ("x", i32 [ 1l ]) ])));
   C.test "every registered example runs on the interpreter" (fun () ->
       List.iter
-        (fun (e : Ocaml_cuda_examples.Programs.t) -> ignore (run (e.graph ()) (e.inputs ())))
-        Ocaml_cuda_examples.Programs.all);
+        (fun (e : Cudacaml_examples.Programs.t) -> ignore (run (e.graph ()) (e.inputs ())))
+        Cudacaml_examples.Programs.all);
   C.run ()

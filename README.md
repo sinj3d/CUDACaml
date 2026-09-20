@@ -1,4 +1,4 @@
-# ocaml-cuda
+# CUDACaml
 
 An embedded array DSL in OCaml that compiles to CUDA. One IR, two executors —
 a CUDA JIT and a pure-OCaml reference interpreter — checked against each other.
@@ -22,7 +22,7 @@ this page was produced.
 ## What fusion buys you
 
 Five chained element-wise maps become **one** kernel with no intermediate
-buffers — `dune exec ocaml-cuda -- emit chain`:
+buffers — `dune exec cudacaml -- emit chain`:
 
 ```cuda
 extern "C" __global__ void k_18(float* p_x, float* t18) {
@@ -32,7 +32,7 @@ extern "C" __global__ void k_18(float* p_x, float* t18) {
 }
 ```
 
-and `dune exec ocaml-cuda -- check chain` proves it still agrees with the
+and `dune exec cudacaml -- check chain` proves it still agrees with the
 interpreter.
 
 ## What is in the library
@@ -93,12 +93,12 @@ link fails on `-lffi` or `-lnvrtc`, or when a GPU test skips unexpectedly.
 
 | Command | Does |
 |---|---|
-| `ocaml-cuda list` | names of the bundled example programs |
-| `ocaml-cuda emit <ex>` | the generated CUDA C++ (pipe it to `nvcc -ptx` to debug) |
-| `ocaml-cuda dot <ex>` | the graph as Graphviz |
-| `ocaml-cuda run <ex>` | run on the GPU and print the outputs |
-| `ocaml-cuda check <ex>` | differential-test the GPU against the interpreter |
-| `ocaml-cuda info` | the device description (name, compute capability, SMs, memory) |
+| `cudacaml list` | names of the bundled example programs |
+| `cudacaml emit <ex>` | the generated CUDA C++ (pipe it to `nvcc -ptx` to debug) |
+| `cudacaml dot <ex>` | the graph as Graphviz |
+| `cudacaml run <ex>` | run on the GPU and print the outputs |
+| `cudacaml check <ex>` | differential-test the GPU against the interpreter |
+| `cudacaml info` | the device description (name, compute capability, SMs, memory) |
 
 `emit` and `dot` need no GPU.
 

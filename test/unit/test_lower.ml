@@ -1,12 +1,12 @@
 (* Schedule + Lower. Structural checks on Kernel_ir; no GPU. *)
-open Ocaml_cuda
+open Cudacaml
 open Dsl
-module C = Ocaml_cuda_testlib.Check
+module C = Cudacaml_testlib.Check
 module K = Kernel_ir
 
 let vec n = Shape.of_dims [ n ]
-let example name = Option.get (Ocaml_cuda_examples.Programs.find name)
-let saxpy () = Lower.program (Ocaml_cuda_examples.Saxpy.program ~n:1000 ~a:2.0)
+let example name = Option.get (Cudacaml_examples.Programs.find name)
+let saxpy () = Lower.program (Cudacaml_examples.Saxpy.program ~n:1000 ~a:2.0)
 
 let rec loads_in_expr acc : K.expr -> string list = function
   | K.Load { buf; index } -> loads_in_expr (buf.name :: acc) index

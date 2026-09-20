@@ -60,7 +60,7 @@ unit: build
 # System tests run ONLY if `unit` succeeded (make stops on the first failing
 # prerequisite) and only with the env var set.
 system: unit
-	OCAML_CUDA_SYSTEM=1 dune test test/system --force
+	CUDACAML_SYSTEM=1 dune test test/system --force
 
 # Hand-written OCaml against the CUDA backend on the same two workloads.
 # Needs a device; exits 77 without one. Override the shape with e.g.
@@ -68,7 +68,7 @@ system: unit
 # The dtype is f32 or f64 and defaults to f32.
 BENCH_ARGS ?=
 bench: build
-	dune exec ocaml-cuda-bench -- $(BENCH_ARGS)
+	dune exec cudacaml-bench -- $(BENCH_ARGS)
 
 # Both precisions, then a dated section appended to bench/results/<card>.md.
 # BENCH_ARGS here is "n reps degree" only: the dtype is what it varies.

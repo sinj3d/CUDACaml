@@ -1,7 +1,7 @@
 (* Device memory. Only Bigarrays ever reach a memcpy: they live outside the
    OCaml heap, so the GC cannot move them under the driver's feet. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 type t = { ptr : Cuda.Deviceptr.t; bytes : int }
 

@@ -8,7 +8,7 @@
     [Shape.scalar], broadcast, so a new seed is a new input and not a
     re-JIT. *)
 
-open Ocaml_cuda_ir
+open Cudacaml_ir
 
 module Philox : sig
   (** Philox-4x32-10. [ctr] is the 128-bit counter as four I32 words

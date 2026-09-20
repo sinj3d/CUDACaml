@@ -1,3 +1,3 @@
 (library
- (name ocaml_cuda_examples)
- (libraries ocaml_cuda))
+ (name cudacaml_examples)
+ (libraries cudacaml))
