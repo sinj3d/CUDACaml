@@ -26,7 +26,7 @@
 #
 set -euo pipefail
 
-REPO_URL="${OCAML_CUDA_REPO:-https://github.com/sjin2/ocaml-cuda}"
+REPO_URL="${OCAML_CUDA_REPO:-https://github.com/sinj3d/ocaml-cuda}"
 REPO_DIR="${OCAML_CUDA_DIR:-$HOME/ocaml-cuda}"
 SWITCH="${OCAML_CUDA_SWITCH:-ocaml-cuda}"
 OCAML_VERSION="${OCAML_CUDA_OCAML:-5.4.0}"
