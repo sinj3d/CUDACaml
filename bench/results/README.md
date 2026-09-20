@@ -4,8 +4,8 @@ One Markdown file per card, named after the device: the name `cudacaml info`
 prints, lower-cased, with every run of non-alphanumerics replaced by a dash.
 
 ```
-NVIDIA A100-SXM4-80GB           ->  nvidia-a100-sxm4-80gb.md
-NVIDIA GeForce RTX 5080 Laptop  ->  nvidia-geforce-rtx-5080-laptop.md
+NVIDIA A100-SXM4-40GB               ->  nvidia-a100-sxm4-40gb.md
+NVIDIA GeForce RTX 5080 Laptop GPU  ->  nvidia-geforce-rtx-5080-laptop-gpu.md
 ```
 
 Write them with `make record` (or `bash scripts/bench-record.sh N REPS DEGREE`),

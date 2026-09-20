@@ -51,7 +51,12 @@ interpreter.
 
 ## Building
 
+CUDACaml is not on opam; clone it and build in place.
+
 ```
+git clone https://github.com/sinj3d/CUDACaml && cd CUDACaml
+opam install dune cudajit   # dependencies
+
 make build     # compile
 make unit      # unit tests; GPU-dependent ones skip themselves without a device
 make system    # gated end-to-end suite (needs a GPU)
@@ -59,10 +64,11 @@ make bench     # hand-written OCaml against the CUDA backend
 make record    # bench both precisions, append to bench/results/<card>.md
 ```
 
-You need OCaml >= 5.1, `dune` >= 3.0, and [`cudajit`](https://github.com/lukstafi/ocaml-cudajit)
-(`opam install dune cudajit`). `scripts/brev-setup.sh` takes a fresh Ubuntu GPU
-box from empty to a green `make unit` in one command, if you want a cloud GPU
-to try it on.
+You need OCaml >= 5.1, `dune` >= 3.0 and
+[`cudajit`](https://github.com/lukstafi/ocaml-cudajit), plus a CUDA 12.x
+toolkit (see below). `scripts/brev-setup.sh` takes a fresh Ubuntu GPU box from
+empty to a green `make unit` in one command, if you want a cloud GPU to try it
+on.
 
 ### The CUDA toolchain
 

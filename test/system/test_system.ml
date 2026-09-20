@@ -1,10 +1,10 @@
-(* SYSTEM TESTS, v2. Gated twice:
+(* SYSTEM TESTS. Gated twice:
      1. `make system` only runs after `make unit` is green.
      2. This binary exits 0 with a SKIP message unless CUDACAML_SYSTEM=1
         is set AND a CUDA device is present.
-   S1–S7 are the v1 suite (S5 now also watches the buffer pool). S8–S20
-   cover RNG, AD, rows, matmul, scatter, streams, residents, LSM, pinned
-   memory, multi-GPU and the timing table. *)
+   S1–S7 cover the core pipeline end to end; S8–S20 cover RNG, AD, rows,
+   matmul, scatter, streams, residents, LSM, pinned memory, multi-GPU and
+   the timing table. *)
 open Cudacaml
 open Dsl
 module C = Cudacaml_testlib.Check
@@ -59,7 +59,7 @@ let () =
   print_string (Runtime.Device.info_to_string (Runtime.Device.info ()));
   print_newline ();
 
-  (* ---------------------------------------------------------------- v1 *)
+  (* ------------------------------------------------- the core pipeline *)
   List.iter
     (fun (e : Programs.t) -> C.test ("S1 example " ^ e.name) (fun () -> diff (e.graph ()) (e.inputs ())))
     Programs.all;
@@ -104,7 +104,7 @@ let () =
         (t_interp /. t_warm);
       Backend_cuda.release cc);
 
-  (* ---------------------------------------------------------------- v2 *)
+  (* ----------------------------------- RNG, AD, matmul, runtime, multi *)
   C.test "S8 Rng.u32 over 2^20 is bit-exact" (fun () ->
       let g = Graph.create ~name:"u32" ~outputs:(one "r" (Rng.u32 ~key:(Dsl.scalar "seed" Dtype.I32) (vec (1 lsl 20)))) in
       diff g [ seed 12345l ]);
