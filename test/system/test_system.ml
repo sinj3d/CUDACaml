@@ -4,7 +4,7 @@
         is set AND a CUDA device is present.
    S1–S7 are the v1 suite (S5 now also watches the buffer pool). S8–S20
    cover RNG, AD, rows, matmul, scatter, streams, residents, LSM, pinned
-   memory, multi-GPU and the timing table. Promoted by T28. *)
+   memory, multi-GPU and the timing table. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

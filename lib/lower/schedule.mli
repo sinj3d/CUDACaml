@@ -33,7 +33,7 @@ val single_block : launch
 (** Scan kernels over a single row: [rows_thread ~rows:1]. *)
 val single_thread : launch
 
-(** {1 Multi-kernel reduce and scan (T21)} *)
+(** {1 Multi-kernel reduce and scan} *)
 
 (** Row length at or below which a [Reduce] stays a single kernel: 4096. *)
 val reduce_threshold : int
@@ -53,7 +53,7 @@ val scan_chunk : int
     [row_len <= scan_chunk], else [3]. *)
 val scan_kernels : row_len:int -> int
 
-(** {1 The 2-D geometry (T22)} *)
+(** {1 The 2-D geometry} *)
 
 (** The side of the square thread tile a [Matmul] is blocked by, and of each
     of its two shared-memory staging tiles: 16, so a block is 256 threads. *)

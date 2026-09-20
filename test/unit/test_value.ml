@@ -1,4 +1,4 @@
-(* T01: Value. *)
+(* Value. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 

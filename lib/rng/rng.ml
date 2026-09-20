@@ -6,7 +6,7 @@ module Philox = struct
      hex literal wraps into the negative half of int32, which is exactly the
      bit pattern we want. *)
   let m0 = Int32.of_string "0xD2511F53"
-  (* PHILOX_M4x32_1 is 0xCD9E8D57. The T16 spec prose transcribes it as
+  (* PHILOX_M4x32_1 is 0xCD9E8D57. Some transcriptions give
      0xCD9E8D7C, which reproduces none of the three known-answer vectors;
      the value below is what Random123's philox.h defines and what the KATs
      in test_rng.ml pin. *)

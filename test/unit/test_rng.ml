@@ -1,4 +1,4 @@
-(* T16: Rng. Known-answer vectors pin Philox bit for bit; statistics pin the
+(* Rng. Known-answer vectors pin Philox bit for bit; statistics pin the
    uniform/normal mappings. Everything on the interpreter, deterministic. *)
 open Ocaml_cuda
 open Dsl
@@ -68,8 +68,8 @@ let var l =
   mean (List.map (fun x -> (x -. m) *. (x -. m)) l)
 
 let () =
-  (* Random123 kat_vectors, philox4x32 with 10 rounds. See T16 for the
-     policy on suspected transcription errors. *)
+  (* Random123 kat_vectors, philox4x32 with 10 rounds. A mismatch here means
+     the constants are wrong, not the tolerance. *)
   C.test "KAT: zero counter, zero key" (fun () ->
       expect_words
         ~expect:[ h "0x6627e8d5"; h "0xe169c58d"; h "0xbc57ac4c"; h "0x9b00dbd8" ]

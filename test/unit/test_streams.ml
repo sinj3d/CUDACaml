@@ -1,4 +1,4 @@
-(* T25: streams, events, async runs, resident values. GPU-dependent. *)
+(* Streams, events, async runs, resident values. GPU-dependent. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 module Programs = Ocaml_cuda_examples.Programs

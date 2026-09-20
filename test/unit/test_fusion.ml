@@ -1,4 +1,4 @@
-(* T04: Fusion analysis. *)
+(* Fusion analysis. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

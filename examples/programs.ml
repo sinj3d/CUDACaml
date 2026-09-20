@@ -106,7 +106,7 @@ let reshape_flat =
   in
   { name = "reshape_flat"; graph; inputs = (fun () -> [ ("x", f32s [ 4; 8 ] float_of_int) ]) }
 
-(* --- Black-Scholes (T20) ------------------------------------------- *)
+(* --- Black-Scholes ------------------------------------------------- *)
 
 (* F64 so that the differential check against the CUDA backend is not at
    the mercy of f32 reassociation in the reduction; the f32 path is covered

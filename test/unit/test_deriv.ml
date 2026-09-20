@@ -1,4 +1,4 @@
-(* T17: Deriv. Every rule is checked against a central finite difference on
+(* Deriv. Every rule is checked against a central finite difference on
    the interpreter in F64; structural checks pin the simplifier. No GPU. *)
 open Ocaml_cuda
 open Dsl

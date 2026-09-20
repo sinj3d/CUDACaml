@@ -26,7 +26,7 @@ let single_block = rows_block ~rows:1
 let single_thread = rows_thread ~rows:1
 
 (* ---------------------------------------------------------------- *)
-(* T21: multi-kernel reduce and scan                                 *)
+(* Multi-kernel reduce and scan                                     *)
 (* ---------------------------------------------------------------- *)
 
 (* Below this row length a single block already has enough elements to
@@ -60,7 +60,7 @@ let scan_chunk = block_size
 let scan_kernels ~row_len = if row_len <= scan_chunk then 1 else 3
 
 (* ---------------------------------------------------------------- *)
-(* T22: the one 2-D geometry                                         *)
+(* The one 2-D geometry                                             *)
 (* ---------------------------------------------------------------- *)
 
 (* The side of a square thread tile, and of the two shared-memory tiles a

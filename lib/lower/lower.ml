@@ -72,7 +72,7 @@ type buffers = (int, K.buffer) Hashtbl.t
 
 (* Param buffers are named after the param so the host plan stays readable;
    everything else is named after its uid, which is already unique. Both are
-   valid C identifiers whenever the param name is -- [Mangle] (T06) is what
+   valid C identifiers whenever the param name is -- [Mangle] is what
    makes that unconditional, so no mangling happens here. *)
 let buffer_of_node (Tensor.P t) : K.buffer =
   let name =

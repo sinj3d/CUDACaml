@@ -1,4 +1,4 @@
-(* T22: Matmul node, tiled 2-D lowering, adjoint. No GPU. *)
+(* Matmul node, tiled 2-D lowering, adjoint. No GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

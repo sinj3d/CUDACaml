@@ -1,4 +1,4 @@
-(* T27: device selection and the data-parallel driver. GPU-dependent; the
+(* Device selection and the data-parallel driver. GPU-dependent; the
    true multi-device assertions run only when two or more devices exist. *)
 open Ocaml_cuda
 open Dsl

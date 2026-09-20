@@ -1,4 +1,4 @@
-(* T08: Differential (CPU-only part) and Executor (GPU part, skipped
+(* Differential (CPU-only part) and Executor (GPU part, skipped
    without a device). *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check

@@ -1,4 +1,4 @@
-(* T05: Schedule + Lower. Structural checks on Kernel_ir; no GPU. *)
+(* Schedule + Lower. Structural checks on Kernel_ir; no GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check
@@ -118,7 +118,7 @@ let () =
       let prog = Lower.program ((example "fanout").graph ()) in
       C.int ~expect:4 (List.length prog.kernels);
       C.int ~expect:5 (count is_alloc prog.plan));
-  (* T21: a row that fits in one chunk is still a single kernel and a single
+  (* A row that fits in one chunk is still a single kernel and a single
      block, but that block is now a whole [Schedule.scan_chunk] of threads
      running a Hillis-Steele scan instead of one sequential thread. *)
   C.test "scan kernel runs on one block" (fun () ->

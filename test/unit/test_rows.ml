@@ -1,4 +1,4 @@
-(* T14: last-axis Reduce/Scan, reduce_rows / scan_rows / transpose. No GPU. *)
+(* Last-axis Reduce/Scan, reduce_rows / scan_rows / transpose. No GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

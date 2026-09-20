@@ -1,4 +1,4 @@
-(* T23: Longstaff–Schwartz American put on the interpreter backend. *)
+(* Longstaff–Schwartz American put on the interpreter backend. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 module Lsm = Ocaml_cuda_examples.Lsm

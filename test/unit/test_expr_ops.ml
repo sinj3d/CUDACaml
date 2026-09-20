@@ -1,4 +1,4 @@
-(* T15: bit ops, shifts, Sin/Cos/Erf/Erfinv, and the missing comparison /
+(* Bit ops, shifts, Sin/Cos/Erf/Erfinv, and the missing comparison /
    logic surface. Integer results are exact; float results in F64 are
    checked tightly. No GPU: emit checks look at the generated source. *)
 open Ocaml_cuda

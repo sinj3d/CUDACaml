@@ -151,7 +151,7 @@ let is_arg : type a. int -> a Expr.t -> bool =
   | Expr.Logic _ | Expr.Not _ | Expr.Select _ | Expr.Cast _ ->
       false
 
-(* Syntactic only, as the spec demands: the body must be exactly one binop
+(* Syntactic only, by design: the body must be exactly one binop
    over the two placeholders, in either order. No algebraic normalisation is
    attempted, so an operator written any other way is reported rather than
    silently mis-differentiated. *)

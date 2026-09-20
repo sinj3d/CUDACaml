@@ -1,4 +1,4 @@
-(* T02: Graph + Dsl validation. *)
+(* Graph + Dsl validation. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

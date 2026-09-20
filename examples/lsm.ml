@@ -281,7 +281,7 @@ module Make (B : Backend.S) : S = struct
   let price t ~seed =
     let n = t.n_paths and ns = t.n_steps in
     (* [S] is downloaded once and handed straight back as an input to the
-       two per-step graphs; until T25's device-resident values there is no
+       two per-step graphs; until device-resident values there was no
        way to keep it there, but at least it crosses the bus as a Value
        that is never converted on the host. *)
     let s = List.assoc "S" (B.run t.paths ~inputs:[ ("seed", i32 seed) ]) in
@@ -321,7 +321,7 @@ end
 (* ------------------------------------------------------------------ *)
 
 (** The same algorithm as {!Make}, specialised to the CUDA backend and
-    written against T25's device-resident values.
+    written against device-resident values.
 
     {!Make} hands the whole path matrix [S] back to the host after the
     simulation and then re-uploads it as an input to both per-step

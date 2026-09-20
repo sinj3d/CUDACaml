@@ -1,4 +1,4 @@
-(* T19: Scatter_add node, Atomic_add lowering, zero-fill kernel. No GPU. *)
+(* Scatter_add node, Atomic_add lowering, zero-fill kernel. No GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

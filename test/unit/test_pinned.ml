@@ -1,4 +1,4 @@
-(* T26: pinned host memory and Value.of_raw. GPU-dependent. *)
+(* Pinned host memory and Value.of_raw. GPU-dependent. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 

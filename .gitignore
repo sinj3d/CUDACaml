@@ -3,8 +3,13 @@ _opam/
 *.install
 *.merlin
 
-# Local Claude Code settings (may contain an API key)
-**/.claude/settings.local.json
+# Benchmark and test logs written by `make system` / `make record`.
+*.log
 
-# Agent worktrees (transient, created by Claude Code)
-.claude/worktrees/
+# Internal work orders and the staging area for tests written ahead of
+# their implementation. Kept locally; not part of the published library.
+tasks/
+test/staged/
+
+# Local editor and agent state.
+.claude/

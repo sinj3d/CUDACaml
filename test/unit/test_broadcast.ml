@@ -1,4 +1,4 @@
-(* T13: Broadcast node, Dsl.broadcast / full / scalar. No GPU. *)
+(* Broadcast node, Dsl.broadcast / full / scalar. No GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

@@ -1,4 +1,4 @@
-(* T21: grid-wide reduce and parallel scan, structural. No GPU. *)
+(* Grid-wide reduce and parallel scan, structural. No GPU. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check

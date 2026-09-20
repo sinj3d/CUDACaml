@@ -1,4 +1,4 @@
-(* T20: Black–Scholes Monte Carlo and pathwise Greeks on the interpreter,
+(* Black–Scholes Monte Carlo and pathwise Greeks on the interpreter,
    F64, fixed seed. Every expected value is the closed form. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check

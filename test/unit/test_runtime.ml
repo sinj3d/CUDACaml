@@ -1,4 +1,4 @@
-(* T07: Runtime over cudajit. SKIPS without a device; never fails for lack
+(* Runtime over cudajit. SKIPS without a device; never fails for lack
    of one. With a device it runs a hand-written kernel end to end, which is
    the single most important de-risking test in the project. *)
 open Ocaml_cuda

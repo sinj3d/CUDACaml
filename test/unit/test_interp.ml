@@ -1,4 +1,4 @@
-(* T03: Backend_interp, the oracle. Every expected value here is computed by
+(* Backend_interp, the oracle. Every expected value here is computed by
    hand; do NOT replace any of them with a value produced by the code under
    test. *)
 open Ocaml_cuda

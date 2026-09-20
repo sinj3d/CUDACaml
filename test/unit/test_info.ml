@@ -1,4 +1,4 @@
-(* T11: Device.info and its rendering. GPU-dependent; skips without one. *)
+(* Device.info and its rendering. GPU-dependent; skips without one. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 

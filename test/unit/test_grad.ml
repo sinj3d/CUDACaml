@@ -1,5 +1,4 @@
-(* T18: Grad.grad against bump-and-revalue on the interpreter, F64.
-   T19 replaces the one assertion marked "T18 only" (see T19's spec). *)
+(* Grad.grad against bump-and-revalue on the interpreter, F64. *)
 open Ocaml_cuda
 open Dsl
 module C = Ocaml_cuda_testlib.Check
@@ -127,7 +126,7 @@ let () =
       match Grad.grad g ~output:"s" ~wrt:[ "x" ] with
       | exception Grad.Not_differentiable m -> C.contains ~sub:"Reduce" m
       | _ -> C.fail "expected Not_differentiable");
-  (* T19: the Gather adjoint is a scatter_add, so a repeated index
+  (* The Gather adjoint is a scatter_add, so a repeated index
      accumulates and a source element nobody reads gets exactly zero. *)
   C.test "sum (gather idx x), idx = [0;0;1] -> [2; 1; 0]" (fun () ->
       let x = p "x" [ 3 ] and idx = param "idx" Dtype.I32 (vec 3) in

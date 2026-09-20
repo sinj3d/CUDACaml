@@ -1,4 +1,4 @@
-(* T06: Mangle + Emit. String-level checks; no GPU, no compiler. *)
+(* Mangle + Emit. String-level checks; no GPU, no compiler. *)
 open Ocaml_cuda
 module C = Ocaml_cuda_testlib.Check
 module K = Kernel_ir
