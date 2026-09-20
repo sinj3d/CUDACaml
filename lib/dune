@@ -4,6 +4,7 @@
  (libraries
   ocaml_cuda_ir
   ocaml_cuda_rng
+  ocaml_cuda_ad
   ocaml_cuda_passes
   ocaml_cuda_lower
   ocaml_cuda_runtime

@@ -14,5 +14,6 @@
   test_broadcast
   test_rows
   test_expr_ops
-  test_rng)
+  test_rng
+  test_deriv)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))

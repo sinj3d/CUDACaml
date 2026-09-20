@@ -15,6 +15,9 @@ module Dsl = Ocaml_cuda_ir.Dsl
 (* Layer 1.5: libraries over the DSL *)
 module Rng = Ocaml_cuda_rng.Rng
 
+(* Layer 2: symbolic differentiation of element functions *)
+module Deriv = Ocaml_cuda_ad.Deriv
+
 (* Layer 2: graph -> graph *)
 module Pass = Ocaml_cuda_passes.Pass
 
