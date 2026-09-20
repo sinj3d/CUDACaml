@@ -1,6 +1,8 @@
 (** Registry of example programs with sample inputs. Used by the CLI, the
-    interpreter tests and the gated system tests. Every program here must
-    stay within the v1 subset (static shapes, no broadcasting). *)
+    interpreter tests and the gated system tests. Shapes are always static;
+    the v1 entries also stay inside the v1 subset (no broadcasting), while
+    the Black-Scholes entries added in v2 use broadcasting, the RNG and the
+    reverse-mode gradient transform. *)
 
 open Ocaml_cuda
 open Dsl
@@ -104,8 +106,43 @@ let reshape_flat =
   in
   { name = "reshape_flat"; graph; inputs = (fun () -> [ ("x", f32s [ 4; 8 ] float_of_int) ]) }
 
+(* --- Black-Scholes (T20) ------------------------------------------- *)
+
+(* F64 so that the differential check against the CUDA backend is not at
+   the mercy of f32 reassociation in the reduction; the f32 path is covered
+   by the benchmark. Seed 7 everywhere, so all three are deterministic. *)
+let bs_dtype = Dtype.F64
+let bs_seed = 7l
+let bs_inputs () = Black_scholes.inputs ~dtype:bs_dtype Black_scholes.market ~seed:bs_seed
+
+(* One-step GBM: price only. *)
+let bs_mc n_paths =
+  {
+    name = "bs_mc";
+    graph = (fun () -> Black_scholes.call_mc ~n_paths ~dtype:bs_dtype Black_scholes.market);
+    inputs = bs_inputs;
+  }
+
+(* Multi-step paths: broadcast, scan_rows and a gather of the last column. *)
+let bs_paths n_paths n_steps =
+  {
+    name = "bs_paths";
+    graph =
+      (fun () -> Black_scholes.call_mc_paths ~n_paths ~n_steps ~dtype:bs_dtype Black_scholes.market);
+    inputs = bs_inputs;
+  }
+
+(* The same price plus delta, vega and rho from [Grad.grad]. *)
+let bs_greeks n_paths =
+  {
+    name = "bs_greeks";
+    graph = (fun () -> Black_scholes.call_greeks ~n_paths ~dtype:bs_dtype Black_scholes.market);
+    inputs = bs_inputs;
+  }
+
 let all =
   [ saxpy 1024; sum 1000; maxval 257; prefix 300; reverse 100; clamp 512; squares 64;
-    chain 4096; fanout 1000; reshape_flat ]
+    chain 4096; fanout 1000; reshape_flat;
+    bs_mc 4096; bs_paths 512 16; bs_greeks 4096 ]
 
 let find name = List.find_opt (fun e -> String.equal e.name name) all

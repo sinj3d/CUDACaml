@@ -5,4 +5,4 @@
 (executable
  (name bench)
  (public_name ocaml-cuda-bench)
- (libraries ocaml_cuda unix))
+ (libraries ocaml_cuda ocaml_cuda_examples unix))

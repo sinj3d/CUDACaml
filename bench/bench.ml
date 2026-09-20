@@ -7,6 +7,12 @@
 
      saxpy  r = a*x + y, s = sum r        3 flops per element
      poly   r = horner(x, k coeffs)       2k-1 flops per element
+     greeks Black-Scholes MC price, then the same graph differentiated
+
+   The third workload has no vanilla counterpart: the question it answers
+   is not "how much faster than OCaml" but "what does reverse mode cost",
+   so it reports the ratio of the gradient graph's time to the forward
+   graph's time rather than a speedup.
 
    saxpy is memory bound: the GPU time is almost entirely the host<->device
    copy of x, y and r, so it measures the bus, not the card. poly keeps the
@@ -24,6 +30,7 @@
           (defaults 1<<24, 5, 64, f32) *)
 
 open Ocaml_cuda
+module Bs = Ocaml_cuda_examples.Black_scholes
 
 let time f =
   let t0 = Unix.gettimeofday () in
@@ -198,12 +205,38 @@ let () =
   report "poly" n dtype_s poly_flops t_van t_poly t_compile (kernel_count g);
   let poly_speedup = t_van /. t_poly in
 
+  (* --- greeks ---
+
+     Always f32 and always [n] paths, whatever the dtype argument says: the
+     question is what the adjoint chain costs relative to the forward pass
+     on the same inputs, and both graphs are built at the same precision,
+     so the ratio stands on its own. *)
+  let bs_dt = Dtype.F32 in
+  let g_price = Bs.call_mc ~n_paths:n ~dtype:bs_dt Bs.market in
+  let g_greeks = Bs.call_greeks ~n_paths:n ~dtype:bs_dt Bs.market in
+  let bs_inputs = Bs.inputs ~dtype:bs_dt Bs.market ~seed:7l in
+  let cprice = Backend_cuda.compile g_price in
+  let cgreeks, t_compile = time (fun () -> Backend_cuda.compile g_greeks) in
+  ignore (Backend_cuda.run cprice ~inputs:bs_inputs);
+  ignore (Backend_cuda.run cgreeks ~inputs:bs_inputs);
+  let _, t_fwd = best reps (fun () -> Backend_cuda.run cprice ~inputs:bs_inputs) in
+  let g_outs, t_greeks = best reps (fun () -> Backend_cuda.run cgreeks ~inputs:bs_inputs) in
+  let g_outs = Option.get g_outs in
+  let greek w = scalar_out (Grad.grad_name ~output:"price" ~wrt:w) g_outs in
+  let greeks_ratio = t_greeks /. t_fwd in
+  Printf.printf "greeks n=%-9d f32  %2d kernel(s)  jit %6.3fs\n" n (kernel_count g_greeks)
+    t_compile;
+  Printf.printf "         price   %8.3f s\n" t_fwd;
+  Printf.printf "         greeks  %8.3f s   greeks/price ratio = %.2fx\n" t_greeks greeks_ratio;
+  Printf.printf "         price %.6g  delta %.6g  vega %.6g  rho %.6g\n\n%!"
+    (scalar_out "price" g_outs) (greek "s0") (greek "vol") (greek "rate");
+
   (* One machine-readable line, the only thing scripts/bench-record.sh reads.
      Keep the key set and the spelling stable: it is a data format. *)
   Printf.printf
     "RESULT card=%S dtype=%s n=%d saxpy_cuda_s=%.4g poly_cuda_s=%.4g poly_gflops=%.4g \
-     saxpy_speedup=%.4g poly_speedup=%.4g\n\
+     saxpy_speedup=%.4g poly_speedup=%.4g greeks_ratio=%.4g\n\
      %!"
     card dtype_s n t_saxpy t_poly
     (gflops ~n ~flops_per_elem:poly_flops t_poly)
-    saxpy_speedup poly_speedup
+    saxpy_speedup poly_speedup greeks_ratio
