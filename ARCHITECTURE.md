@@ -42,7 +42,7 @@ violation is a build error, not a code-review catch.
 ## The interfaces that matter
 
 - **`Tensor.node`** (layer 1) is the contract between the front end and every
-  pass. Eight variants. Adding one means updating `Tensor.deps`, `Fusion`,
+  pass. Eleven variants. Adding one means updating `Tensor.deps`, `Fusion`,
   `Lower` and `Backend_interp`; the compiler will list them.
 - **`Expr.fn1` / `fn2`** is how user closures enter the IR: applied once to
   `Arg` placeholders at construction time, never stored. The IR stays
@@ -72,20 +72,26 @@ violation is a build error, not a code-review catch.
 6. Every dtype-dependent decision is made from the `Dtype.t` witness in
    `Lower` / `Emit` / `Interp`; no dtype is special-cased as "the fast one".
 
-## Deliberately out of scope (v1)
+## Deliberately out of scope
 
-Nested parallelism / flattening, dynamic shapes, broadcasting, bool tensors,
-autotuning, and the `[%kernel]` ppx
-(which would desugar to `Dsl` calls and changes nothing below layer 1).
+Nested parallelism / flattening, dynamic shapes, boolean *tensors*
+(comparisons and `select` exist at the expression level), autotuning, and the
+`[%kernel]` ppx (which would desugar to `Dsl` calls and changes nothing below
+layer 1). Kernel geometry is a fixed heuristic in `Schedule`, not a search.
 
-## Suggested order of work
+## Where to start reading
 
-1. `runtime` against `cudajit`: hand-written string kernel compiles and
-   launches end to end. This de-risks the whole project; do it first.
-2. `Value`, `Graph.topological_order`, `Backend_interp`. Now `saxpy` runs
-   on the CPU and the oracle exists.
-3. `Lower` + `Emit` for `Map`/`Map2`/`Iota` with a grid-stride loop, then
-   `Executor`. First GPU result; `Differential` goes green.
-4. `Fusion`. The demo number.
-5. `Reduce` (block tree reduction, `__shfl_down_sync`), then `Scan`, `Gather`.
-6. ppx, if time remains.
+The layers below are ordered so that each one only depends on the ones above
+it, and that is also the order that makes them legible:
+
+1. `lib/ir/tensor.ml` — the eleven node variants. Everything else is a fold
+   over them, so this file bounds the whole system.
+2. `lib/backend_interp/` — the oracle, and the shortest complete statement of
+   what every node *means*.
+3. `lib/lower/fusion.ml` then `lower.ml` — where the performance decisions
+   live, and the only place they live.
+4. `lib/backend_cuda/emit.ml` — a pretty-printer over `Kernel_ir`. If you are
+   tempted to make a decision here, it belongs in step 3.
+
+`cudacaml emit <example>` and `cudacaml dot <example>` both run without a GPU
+and are the fastest way to see what a graph became.

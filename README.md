@@ -13,7 +13,8 @@ Graph.create ~name:"saxpy" ~outputs:[ ("r", Tensor.P r); ("s", Tensor.P (reduce 
 `Dsl` builds a typed DAG, a fusion analysis decides which nodes need a buffer,
 `Lower` turns the rest into imperative kernels, and `Emit` prints CUDA C++ that
 NVRTC compiles at run time. See [ARCHITECTURE.md](ARCHITECTURE.md) for the
-layering and the invariants that hold it together.
+layering and the invariants that hold it together, and
+[SKILLS.md](SKILLS.md) if you are pointing a coding agent at this repo.
 
 Every graph runs two ways. The CUDA path is the product; the interpreter is the
 oracle. `Differential.check` runs both and compares, which is how every claim on
