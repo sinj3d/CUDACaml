@@ -79,13 +79,30 @@ let shift (d : Dtype.packed) ~sym ~name (a : string) (b : string) : string =
   | Dtype.P Dtype.F32 | Dtype.P Dtype.F64 ->
       failwith (Printf.sprintf "Emit: %s on a float dtype" name)
 
+(* Signed overflow is undefined in C++ and nvcc exploits it: given
+   [i * 0xD2511F53] it may assume the product cannot go negative and fold a
+   [< 0] test to a constant. The interpreter wraps instead (Int32.mul), so
+   the two backends disagree the moment an integer computation overflows --
+   which Philox does deliberately, on every round. Adding through the
+   unsigned type of the same width makes the wrap defined and the backends
+   agree. Same reasoning as [shift] above. *)
+let wrapping (d : Dtype.packed) ~sym (a : string) (b : string) : string =
+  match d with
+  | Dtype.P Dtype.I32 ->
+      Printf.sprintf "((int)((unsigned int)(%s) %s (unsigned int)(%s)))" a sym b
+  | Dtype.P Dtype.I64 ->
+      Printf.sprintf "((long long)((unsigned long long)(%s) %s (unsigned long long)(%s)))" a
+        sym b
+  | Dtype.P Dtype.F32 | Dtype.P Dtype.F64 | Dtype.P Dtype.Bool ->
+      Printf.sprintf "(%s %s %s)" a sym b
+
 (* [a] and [b] are already-printed operands. Never [min(]/[max(]: those
    need <algorithm>. *)
 let binop (d : Dtype.packed) (op : Expr.binop) (a : string) (b : string) : string =
   match op with
-  | Expr.Add -> Printf.sprintf "(%s + %s)" a b
-  | Expr.Sub -> Printf.sprintf "(%s - %s)" a b
-  | Expr.Mul -> Printf.sprintf "(%s * %s)" a b
+  | Expr.Add -> wrapping d ~sym:"+" a b
+  | Expr.Sub -> wrapping d ~sym:"-" a b
+  | Expr.Mul -> wrapping d ~sym:"*" a b
   | Expr.Div -> Printf.sprintf "(%s / %s)" a b
   | Expr.Min -> (
       match classify d with
@@ -104,10 +121,18 @@ let binop (d : Dtype.packed) (op : Expr.binop) (a : string) (b : string) : strin
   | Expr.Shr -> shift d ~sym:">>" ~name:"shr" a b
 
 (* Unary minus of an operand that already starts with a sign needs a space:
-   [(--7)] lexes as the C decrement operator and does not compile. *)
-let neg (a : string) : string =
-  if String.length a > 0 && (a.[0] = '-' || a.[0] = '+') then Printf.sprintf "(- %s)" a
-  else Printf.sprintf "(-%s)" a
+   [(--7)] lexes as the C decrement operator and does not compile.
+
+   Integers negate through the unsigned type for the same reason [wrapping]
+   exists: [-INT_MIN] is undefined in C, where the interpreter's [Int32.neg]
+   wraps back to [Int32.min_int]. *)
+let neg (d : Dtype.packed) (a : string) : string =
+  match d with
+  | Dtype.P Dtype.I32 -> Printf.sprintf "((int)(0u - (unsigned int)(%s)))" a
+  | Dtype.P Dtype.I64 -> Printf.sprintf "((long long)(0ull - (unsigned long long)(%s)))" a
+  | Dtype.P Dtype.F32 | Dtype.P Dtype.F64 | Dtype.P Dtype.Bool ->
+      if String.length a > 0 && (a.[0] = '-' || a.[0] = '+') then Printf.sprintf "(- %s)" a
+      else Printf.sprintf "(-%s)" a
 
 let unop (d : Dtype.packed) (op : Expr.unop) (a : string) : string =
   let math ~f32 ~f64 name =
@@ -117,7 +142,7 @@ let unop (d : Dtype.packed) (op : Expr.unop) (a : string) : string =
     | Integral -> failwith (Printf.sprintf "Emit: %s on a non-float dtype" name)
   in
   match op with
-  | Expr.Neg -> neg a
+  | Expr.Neg -> neg d a
   | Expr.Sqrt -> math ~f32:"sqrtf" ~f64:"sqrt" "sqrt"
   | Expr.Exp -> math ~f32:"expf" ~f64:"exp" "exp"
   | Expr.Log -> math ~f32:"logf" ~f64:"log" "log"
@@ -125,7 +150,7 @@ let unop (d : Dtype.packed) (op : Expr.unop) (a : string) : string =
       match classify d with
       | Float32 -> Printf.sprintf "fabsf(%s)" a
       | Float64 -> Printf.sprintf "fabs(%s)" a
-      | Integral -> Printf.sprintf "((%s < 0) ? %s : %s)" a (neg a) a)
+      | Integral -> Printf.sprintf "((%s < 0) ? %s : %s)" a (neg d a) a)
   | Expr.Sin -> math ~f32:"sinf" ~f64:"sin" "sin"
   | Expr.Cos -> math ~f32:"cosf" ~f64:"cos" "cos"
   (* The [f] suffix is not decoration: [erf] on a float argument is the
