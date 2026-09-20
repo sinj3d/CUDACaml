@@ -7,13 +7,16 @@ let vec n = Shape.of_dims [ n ]
 let f32s n f = Value.P (Value.of_list Dtype.F32 (vec n) (List.init n f))
 let live () = Runtime.Buffer.live_count ()
 
-let scalar o name =
-  match List.assoc name o with
-  | Value.P v -> ( match Value.dtype v with Dtype.F32 -> Value.get v 0 | _ -> C.fail "dtype")
+(* A locally abstract type is what lets the existential under [Value.P]
+   be matched against [Dtype.F32]; the checks below are unchanged. *)
+let get_f32 : type a. a Dtype.t -> a Value.t -> float =
+ fun d v -> match d with Dtype.F32 -> Value.get v 0 | _ -> C.fail "dtype"
 
-let first_elem o name =
-  match List.assoc name o with
-  | Value.P v -> ( match Value.dtype v with Dtype.F32 -> Value.get v 0 | _ -> C.fail "dtype")
+let set_f32 : type a. a Dtype.t -> a Value.t -> float -> unit =
+ fun d v x -> match d with Dtype.F32 -> Value.set v 0 x | _ -> C.fail "dtype"
+
+let scalar o name = match List.assoc name o with Value.P v -> get_f32 (Value.dtype v) v
+let first_elem o name = match List.assoc name o with Value.P v -> get_f32 (Value.dtype v) v
 
 let () =
   if not (Runtime.Device.available ()) then (C.skip "no CUDA device"; C.run ());
@@ -57,8 +60,7 @@ let () =
       let c = Backend_cuda.compile saxpy in
       let o1 = Backend_cuda.run c ~inputs:(inputs 1) in
       let o2 = Backend_cuda.run c ~inputs:(inputs 1) in
-      (match List.assoc "r" o1 with
-      | Value.P v -> ( match Value.dtype v with Dtype.F32 -> Value.set v 0 (-999.0) | _ -> C.fail "dtype"));
+      (match List.assoc "r" o1 with Value.P v -> set_f32 (Value.dtype v) v (-999.0));
       C.float ~tol:0.0 ~expect:3.0 (first_elem o2 "r");
       Backend_cuda.release c);
   C.test "missing input raises and leaks nothing" (fun () ->

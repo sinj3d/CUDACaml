@@ -21,5 +21,6 @@
   test_black_scholes
   test_multikernel
   test_matmul
-  test_lsm)
+  test_lsm
+  test_pool)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))

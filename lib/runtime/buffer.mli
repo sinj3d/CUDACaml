@@ -9,6 +9,9 @@ val alloc : bytes:int -> t
 val free : t -> unit
 val byte_size : t -> int
 
+(** Allocations minus frees since process start. For tests and leak checks. *)
+val live_count : unit -> int
+
 (** Synchronous copies. [download] writes into an existing host value
     whose [byte_size] must match. *)
 val upload : Value.packed -> t -> unit

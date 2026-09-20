@@ -5,13 +5,24 @@ open Ocaml_cuda_ir
 
 type t = { ptr : Cuda.Deviceptr.t; bytes : int }
 
+(* Allocations minus frees. Every [alloc] is +1 and every [free] is -1,
+   including the [max 1 bytes] dummy that a 0-element tensor gets: the
+   count is of device allocations, not of bytes. *)
+let live = ref 0
+let live_count () = !live
+
 let alloc ~bytes =
   Device.init ();
   (* CUDA rejects a 0-byte allocation, but a 0-element tensor still needs a
      valid pointer to hand to a kernel. *)
-  { ptr = Cuda.Deviceptr.mem_alloc ~size_in_bytes:(max 1 bytes); bytes }
+  let t = { ptr = Cuda.Deviceptr.mem_alloc ~size_in_bytes:(max 1 bytes); bytes } in
+  incr live;
+  t
 
-let free t = Cuda.Deviceptr.mem_free t.ptr
+let free t =
+  Cuda.Deviceptr.mem_free t.ptr;
+  decr live
+
 let byte_size t = t.bytes
 let unsafe_ptr t = t.ptr
 

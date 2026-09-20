@@ -9,6 +9,14 @@ include Ocaml_cuda_backend.Backend.S
     prints and what golden tests snapshot. *)
 val source : Graph.t -> string
 
+(** Frees the device buffers a [compile] allocated. Idempotent; [run]
+    after it raises. A dropped [compiled] is released by a finaliser, but
+    do not rely on that. *)
+val release : compiled -> unit
+
+(** The persistent executor behind a [compiled]. For tests and tooling. *)
+val executor : compiled -> Executor.t
+
 (** Internals, exposed for tests and tooling. *)
 module Emit = Emit
 
