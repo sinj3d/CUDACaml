@@ -384,6 +384,26 @@ and compute : type a. memo -> inputs -> a Tensor.t -> a Value.t =
         Value.set out i (Value.get vs j)
       done;
       out
+  | Tensor.Scatter_add (idx, src, shape) ->
+      (* [Value.create] zero-fills every dtype it can store, so the output
+         starts at the additive identity with no explicit fill. The adds are
+         a strictly sequential left fold in source-index order, which is ONE
+         of the orders the device may pick: the interpreter is exact and
+         reproducible, the device agrees only up to float rounding. *)
+      let vidx = eval_node memo inputs idx in
+      let vs = eval_node memo inputs src in
+      let out = Value.create t.dtype shape in
+      let m = Value.numel out in
+      for i = 0 to Value.numel vs - 1 do
+        let j = Int32.to_int (Value.get vidx i) in
+        if j < 0 || j >= m then
+          invalid_arg
+            (Printf.sprintf
+               "Backend_interp: scatter_add index out of bounds: %d at %d (output has                 %d elements)"
+               j i m);
+        Value.set out j (binop t.dtype Expr.Add (Value.get out j) (Value.get vs i))
+      done;
+      out
   | Tensor.Reshape (shape, src) ->
       let vs = eval_node memo inputs src in
       let out = Value.create t.dtype shape in

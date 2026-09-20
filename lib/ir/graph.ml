@@ -31,6 +31,7 @@ let node_kind (Tensor.P t) =
   | Tensor.Reduce _ -> "Reduce"
   | Tensor.Scan _ -> "Scan"
   | Tensor.Gather _ -> "Gather"
+  | Tensor.Scatter_add _ -> "Scatter_add"
   | Tensor.Reshape _ -> "Reshape"
   | Tensor.Broadcast _ -> "Broadcast"
 

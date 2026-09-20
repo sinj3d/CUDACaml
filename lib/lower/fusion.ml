@@ -21,8 +21,12 @@ let is_param (Tensor.P t) = match t.node with Tensor.Param _ -> true | _ -> fals
 
 (* Fusion barriers: the result of a [Reduce]/[Scan] is produced by a whole
    kernel co-operating, not by one thread per element, so it cannot be
-   inlined into a consumer's element expression. Kept as its own rule even
-   where an output or fan-out would also force a buffer.
+   inlined into a consumer's element expression. [Scatter_add] is a barrier
+   for the same reason from the other side: its output element [i] is the
+   sum of an unknown set of source elements, so there is no per-element
+   expression to inline, and it is written by two kernels (zero-fill, then
+   atomics) that must both have finished before a consumer reads it. Kept as
+   its own rule even where an output or fan-out would also force a buffer.
 
    Everything else -- [Map], [Map2], [Iota], [Gather], [Reshape],
    [Broadcast] -- is element-wise: one thread computes one output element,
@@ -30,7 +34,9 @@ let is_param (Tensor.P t) = match t.node with Tensor.Param _ -> true | _ -> fals
    force it into a buffer. [Broadcast] inlines to a load at index 0, which
    is why it is not a barrier even though its source is often a [Reduce]. *)
 let is_barrier (Tensor.P t) =
-  match t.node with Tensor.Reduce _ | Tensor.Scan _ -> true | _ -> false
+  match t.node with
+  | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _ -> true
+  | _ -> false
 
 let output_uids g =
   let tbl = Hashtbl.create 16 in

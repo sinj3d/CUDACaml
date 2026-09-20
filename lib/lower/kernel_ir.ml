@@ -37,6 +37,10 @@ type stmt =
   | Let of { var : string; dtype : Dtype.packed; value : expr }  (** declares + inits *)
   | Assign of { var : string; value : expr }  (** re-assigns an existing [Let] var *)
   | Store of { buf : buffer; index : expr; value : expr }
+  | Atomic_add of { buf : buffer; index : expr; value : expr }
+      (** [atomicAdd(&buf[index], value)]: a read-modify-write that no other
+          thread can interleave with. The order in which concurrent adds
+          land is unspecified, so a float accumulation is not bit-reproducible. *)
   | For of { var : string; lo : expr; hi : expr; step : expr; body : stmt list }
       (** [for (int var = lo; var < hi; var += step)] *)
   | If of { cond : expr; then_ : stmt list; else_ : stmt list }

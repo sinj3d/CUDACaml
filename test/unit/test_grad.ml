@@ -127,14 +127,25 @@ let () =
       match Grad.grad g ~output:"s" ~wrt:[ "x" ] with
       | exception Grad.Not_differentiable m -> C.contains ~sub:"Reduce" m
       | _ -> C.fail "expected Not_differentiable");
-  (* T18 only: T19 replaces this test with two gather-gradient checks. *)
-  C.test "gather on the path is Not_differentiable (until T19)" (fun () ->
-      let x = p "x" [ 3 ] in
-      let idx = map (fun _ -> const Dtype.I32 0l) (iota (vec 3)) in
+  (* T19: the Gather adjoint is a scatter_add, so a repeated index
+     accumulates and a source element nobody reads gets exactly zero. *)
+  C.test "sum (gather idx x), idx = [0;0;1] -> [2; 1; 0]" (fun () ->
+      let x = p "x" [ 3 ] and idx = param "idx" Dtype.I32 (vec 3) in
       let g = Graph.create ~name:"g" ~outputs:(one "s" (reduce add ~init:zero (gather idx x))) in
-      match Grad.grad g ~output:"s" ~wrt:[ "x" ] with
-      | exception Grad.Not_differentiable _ -> ()
-      | _ -> C.fail "expected Not_differentiable");
+      let inputs =
+        [ ("x", f64 [ 3 ] [ 1.; 2.; 3. ]);
+          ("idx", Value.P (Value.of_list Dtype.I32 (vec 3) [ 0l; 0l; 1l ])) ]
+      in
+      let o = grad_vs_fd g ~output:"s" ~wrt:[ "x" ] inputs in
+      C.floats ~tol:1e-12 ~expect:[ 2.; 1.; 0. ] (floats o (Grad.grad_name ~output:"s" ~wrt:"x")));
+  C.test "reverse (gather by n-1-i) with weights -> the reversed weights" (fun () ->
+      let n = 4 in
+      let x = p "x" [ n ] and w = p "w" [ n ] in
+      let rev = map (fun i -> sub (const Dtype.I32 (Int32.of_int (n - 1))) i) (iota (vec n)) in
+      let g = Graph.create ~name:"g" ~outputs:(one "s" (reduce add ~init:zero (map2 mul w (gather rev x)))) in
+      let inputs = [ ("x", f64 [ n ] xs4); ("w", f64 [ n ] ys4) ] in
+      let o = grad_vs_fd g ~output:"s" ~wrt:[ "x" ] inputs in
+      C.floats ~tol:1e-9 ~expect:(List.rev ys4) (floats o (Grad.grad_name ~output:"s" ~wrt:"x")));
   C.test "original outputs are preserved; names and count" (fun () ->
       let x = p "x" [ 4 ] and y = p "y" [ 4 ] in
       let r = map2 mul x y in

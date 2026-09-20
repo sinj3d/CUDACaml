@@ -188,6 +188,18 @@ let rec stmt ~indent (s : K.stmt) : string =
       let si = expr index in
       let sv = expr value in
       Printf.sprintf "%s%s[%s] = %s;\n" pad buf.K.name si sv
+  (* CUDA supplies [atomicAdd] for [float], [double] (sm_60+) and [int].
+     [unsigned long long] has an overload but plain [long long] does not,
+     and [bool] is not addressable as an atomic at all, so both are refused
+     here rather than emitting something that fails inside NVRTC. *)
+  | K.Atomic_add { buf; index; value } ->
+      let si = expr index in
+      let sv = expr value in
+      (match buf.K.dtype with
+      | Dtype.P Dtype.F32 | Dtype.P Dtype.F64 | Dtype.P Dtype.I32 -> ()
+      | Dtype.P Dtype.I64 -> failwith "Emit: atomicAdd on an i64 buffer"
+      | Dtype.P Dtype.Bool -> failwith "Emit: atomicAdd on a bool buffer");
+      Printf.sprintf "%satomicAdd(&%s[%s], %s);\n" pad buf.K.name si sv
   | K.For { var; lo; hi; step; body } ->
       let slo = expr lo in
       let shi = expr hi in
@@ -246,7 +258,7 @@ let rec collect_stmt (acc : string list) (s : K.stmt) : string list =
   match s with
   | K.Let { var = _; dtype = _; value } -> collect_expr acc value
   | K.Assign { var = _; value } -> collect_expr acc value
-  | K.Store { buf; index; value } ->
+  | K.Store { buf; index; value } | K.Atomic_add { buf; index; value } ->
       collect_expr (collect_expr (buf.K.name :: acc) index) value
   | K.For { var = _; lo; hi; step; body } ->
       let acc = collect_expr (collect_expr (collect_expr acc lo) hi) step in
@@ -288,6 +300,9 @@ let rec rename_stmt m (s : K.stmt) : K.stmt =
   | K.Assign { var; value } -> K.Assign { var; value = rename_expr m value }
   | K.Store { buf; index; value } ->
       K.Store
+        { buf = rename_buf m buf; index = rename_expr m index; value = rename_expr m value }
+  | K.Atomic_add { buf; index; value } ->
+      K.Atomic_add
         { buf = rename_buf m buf; index = rename_expr m index; value = rename_expr m value }
   | K.For { var; lo; hi; step; body } ->
       K.For

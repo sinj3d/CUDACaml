@@ -57,6 +57,13 @@ let lit : type a. a Dtype.t -> a -> K.literal =
   | Dtype.I64 -> K.I v
   | Dtype.Bool -> K.B v
 
+(* The additive identity at an element type: what the zero-fill kernel of a
+   [Scatter_add] stores before any atomic lands. *)
+let zero_lit : type a. a Dtype.t -> K.literal = function
+  | Dtype.F32 | Dtype.F64 -> K.F 0.0
+  | Dtype.I32 | Dtype.I64 -> K.I 0L
+  | Dtype.Bool -> K.B false
+
 (* ------------------------------------------------------------------ *)
 (* Buffers: one per materialised node                                  *)
 (* ------------------------------------------------------------------ *)
@@ -158,9 +165,12 @@ and inline_node (plan : Fusion.plan) (bufs : buffers) (Tensor.P t : Tensor.packe
          The source has numel 1, so any other index would read out of
          bounds, silently, on the device. *)
       elem plan bufs (Tensor.P a) ~index:(int_lit 0)
-  | Tensor.Param _ | Tensor.Reduce _ | Tensor.Scan _ ->
-      (* [Fusion] materialises all three unconditionally. *)
-      failwith "Lower: Param/Reduce/Scan must be materialised"
+  | Tensor.Param _ | Tensor.Reduce _ | Tensor.Scan _ | Tensor.Scatter_add _ ->
+      (* [Fusion] materialises all four unconditionally. A [Scatter_add] has
+         no per-element expression at all -- output element [i] is the sum of
+         an unknown subset of the source -- so there is nothing to inline
+         even in principle. *)
+      failwith "Lower: Param/Reduce/Scan/Scatter_add must be materialised"
 
 (* ------------------------------------------------------------------ *)
 (* Kernel inputs                                                       *)
@@ -185,10 +195,16 @@ let inputs_of (plan : Fusion.plan) (root : Tensor.packed) : Tensor.packed list =
   List.rev !acc
 
 (* ------------------------------------------------------------------ *)
-(* One kernel per root                                                 *)
+(* Kernels per root                                                    *)
 (* ------------------------------------------------------------------ *)
 
-let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.kernel =
+(* A root usually lowers to exactly one kernel, but not always: a
+   [Scatter_add] needs a zero-fill pass before its atomics, and T21's
+   multi-kernel reduce/scan will need the same freedom. The list is in
+   launch order, and [program] concatenates it, so the host plan's [Launch]
+   ops follow the same order with no extra bookkeeping. *)
+let kernels_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.kernel list
+    =
   let out = find_buffer bufs root in
   (* The root's own buffer is always the LAST param: [Executor] and the
      tests both rely on it. *)
@@ -223,7 +239,7 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                 };
             ]
           in
-          { K.name; params; shared = []; body; launch = Schedule.grid_stride ~numel }
+          [ { K.name; params; shared = []; body; launch = Schedule.grid_stride ~numel } ]
       (* Reduction: classic shared-memory tree, one block PER ROW. The tree
          co-operates within a block, so the ids are [Local_thread_id] and
          [Block_dim], never the global ones -- [Global_thread_id] already
@@ -324,7 +340,7 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                   };
               ]
           in
-          { K.name; params; shared = [ sdata ]; body; launch = Schedule.rows_block ~rows }
+          [ { K.name; params; shared = [ sdata ]; body; launch = Schedule.rows_block ~rows } ]
       (* Scan: sequential along a row, one thread per row. Rows are
          independent, so the parallelism is the grid and each block is a
          single thread. Correct and obviously so; a Blelloch scan within the
@@ -359,7 +375,86 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
                 };
             ]
           in
-          { K.name; params; shared = []; body; launch = Schedule.rows_thread ~rows }
+          [ { K.name; params; shared = []; body; launch = Schedule.rows_thread ~rows } ]
+      (* The one root that is not a single kernel. The output buffer is
+         written twice: a grid-stride zero fill over the OUTPUT, then a
+         grid-stride pass over the SOURCE in which every element lands in
+         the output through an atomic add.
+
+         The zero fill cannot be folded into the scatter kernel: by the time
+         a block reached the output elements it would clear, other blocks
+         may already have added to them. Two launches on the same stream are
+         ordered, so no explicit synchronisation is needed between them. *)
+      | Tensor.Scatter_add (idx, src, _) ->
+          let m = Shape.numel t.Tensor.shape in
+          let n = Shape.numel (Tensor.shape (Tensor.P src)) in
+          let zero_body =
+            [
+              K.For
+                {
+                  var = "i";
+                  lo = K.Global_thread_id;
+                  hi = int_lit m;
+                  step = K.Global_size;
+                  body =
+                    [
+                      K.Store
+                        {
+                          buf = out;
+                          index = K.Var "i";
+                          value = K.Lit (zero_lit t.Tensor.dtype, dtype);
+                        };
+                    ];
+                };
+            ]
+          in
+          (* The zero kernel touches nothing but the output, so it takes the
+             output alone -- still the LAST param, as every kernel's output
+             is. *)
+          let zero =
+            {
+              K.name = name ^ "_zero";
+              params = [ out ];
+              shared = [];
+              body = zero_body;
+              launch = Schedule.grid_stride ~numel:m;
+            }
+          in
+          (* [idx] and [src] are both element expressions, so a computed
+             index or a fused source costs no buffer. The index is NOT
+             bounds-checked here: the graph-level contract says the device
+             kernel is unguarded, and the interpreter is where an
+             out-of-range index is caught. *)
+          let scatter_body =
+            [
+              K.For
+                {
+                  var = "i";
+                  lo = K.Global_thread_id;
+                  hi = int_lit n;
+                  step = K.Global_size;
+                  body =
+                    [
+                      K.Atomic_add
+                        {
+                          buf = out;
+                          index = elem plan bufs (Tensor.P idx) ~index:(K.Var "i");
+                          value = elem plan bufs (Tensor.P src) ~index:(K.Var "i");
+                        };
+                    ];
+                };
+            ]
+          in
+          let scatter =
+            {
+              K.name;
+              params;
+              shared = [];
+              body = scatter_body;
+              launch = Schedule.grid_stride ~numel:n;
+            }
+          in
+          [ zero; scatter ]
       | Tensor.Param _ ->
           (* Params are uploaded, never computed: [Fusion.kernel_roots]
              excludes them. *)
@@ -372,7 +467,7 @@ let kernel_of (plan : Fusion.plan) (bufs : buffers) (root : Tensor.packed) : K.k
 let program (g : Graph.t) : K.program =
   let plan = Fusion.plan g in
   let bufs = build_buffers plan g in
-  let kernels = List.map (kernel_of plan bufs) (Fusion.kernel_roots plan) in
+  let kernels = List.concat_map (kernels_of plan bufs) (Fusion.kernel_roots plan) in
   (* Alloc order: params first (so uploads can follow in the same order),
      then every other materialised node in topological order. Frees mirror
      it exactly. *)

@@ -18,7 +18,7 @@ let rec loads_in_expr acc : K.expr -> string list = function
 let rec loads_in_stmts acc = function
   | [] -> acc
   | K.Let { value; _ } :: rest | K.Assign { value; _ } :: rest -> loads_in_stmts (loads_in_expr acc value) rest
-  | K.Store { buf; index; value } :: rest ->
+  | K.Store { buf; index; value } :: rest | K.Atomic_add { buf; index; value } :: rest ->
       loads_in_stmts (loads_in_expr (loads_in_expr (buf.name :: acc) index) value) rest
   | K.For { lo; hi; step; body; _ } :: rest ->
       let acc = loads_in_expr (loads_in_expr (loads_in_expr acc lo) hi) step in

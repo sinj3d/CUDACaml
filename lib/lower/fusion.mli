@@ -12,11 +12,14 @@ type plan
 
 val plan : Graph.t -> plan
 
-(** True for: every [Param]; every [Reduce] and [Scan] (fusion barriers);
-    every program output; and any element-wise node with [Graph.fan_out]
-    of 2 or more (so work is never duplicated across kernels). *)
+(** True for: every [Param]; every [Reduce], [Scan] and [Scatter_add]
+    (fusion barriers); every program output; and any element-wise node with
+    [Graph.fan_out] of 2 or more (so work is never duplicated across
+    kernels). *)
 val is_materialized : plan -> Tensor.packed -> bool
 
 (** The materialised nodes in [Graph.topological_order], excluding
-    [Param]s. One kernel is emitted per entry. *)
+    [Param]s. At least one kernel is emitted per entry: [Scatter_add] needs
+    two (a zero-fill followed by the atomics), everything else exactly
+    one. *)
 val kernel_roots : plan -> Tensor.packed list

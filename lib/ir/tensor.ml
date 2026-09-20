@@ -26,6 +26,12 @@ and _ node =
           is scanned independently from the identity. Same shape as source.
           Whole-tensor scan is [Dsl.scan], which flattens first. *)
   | Gather : int32 t * 'a t -> 'a node  (** out[i] = src[idx[i]] *)
+  | Scatter_add : int32 t * 'a t * Shape.t -> 'a node
+      (** [Scatter_add (idx, src, shape)]: out = zeros shape; for every i,
+          out[idx[i]] += src[i]. [idx] and [src] have the same shape.
+          Float or I32 element type; summation order is unspecified, so a
+          float result is reproducible only up to rounding. The device
+          kernel does NOT bounds-check [idx]; the interpreter does. *)
   | Reshape : Shape.t * 'a t -> 'a node  (** metadata only; numel preserved *)
   | Broadcast : Shape.t * 'a t -> 'a node
       (** [src] has numel 1 (shape [] or [1] or [1;1]...); out[i] = src[0].
@@ -47,5 +53,6 @@ let deps (P t) : packed list =
   | Reduce (_, _, a) -> [ P a ]
   | Scan (_, _, a) -> [ P a ]
   | Gather (i, a) -> [ P i; P a ]
+  | Scatter_add (i, a, _) -> [ P i; P a ]
   | Reshape (_, a) -> [ P a ]
   | Broadcast (_, a) -> [ P a ]

@@ -35,6 +35,15 @@ val scan_rows :
   ('a Expr.t -> 'a Expr.t -> 'a Expr.t) -> init:'a Expr.t -> 'a Tensor.t -> 'a Tensor.t
 
 val gather : int32 Tensor.t -> 'a Tensor.t -> 'a Tensor.t
+
+(** [scatter_add idx src shape]: [out = zeros shape] and [out[idx[i]] +=
+    src[i]] for every [i]. [Invalid_argument] unless [shape idx = shape src]
+    and the dtype is [F32], [F64] or [I32]. Summation order is unspecified:
+    on the device the adds are atomics, so a float result is reproducible
+    only up to rounding. An out-of-range index raises in the interpreter and
+    is UNCHECKED on the device. *)
+val scatter_add : int32 Tensor.t -> 'a Tensor.t -> Shape.t -> 'a Tensor.t
+
 val reshape : Shape.t -> 'a Tensor.t -> 'a Tensor.t
 
 (** Rank-2 only, else [Invalid_argument]. [transpose x] for [x : [m; n]] has

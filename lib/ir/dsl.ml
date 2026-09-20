@@ -18,6 +18,28 @@ let map2 f (a : _ Tensor.t) (b : _ Tensor.t) =
 let gather (idx : int32 Tensor.t) (src : _ Tensor.t) =
   Tensor.make src.dtype idx.shape (Tensor.Gather (idx, src))
 
+(* [Bool] has no storage at all and plain [long long] has no [atomicAdd]
+   overload, so the element type is restricted to the three that both
+   backends can accumulate. Locally abstract, because matching a [Dtype.t]
+   refines its index. *)
+let accumulable : type a. a Dtype.t -> bool = function
+  | Dtype.F32 | Dtype.F64 | Dtype.I32 -> true
+  | Dtype.I64 | Dtype.Bool -> false
+
+(* Both preconditions are checked HERE and nowhere else: [Lower] and the
+   interpreter read the shapes off the node and trust the graph. *)
+let scatter_add (idx : int32 Tensor.t) (src : 'a Tensor.t) shape : 'a Tensor.t =
+  if not (Shape.equal idx.shape src.shape) then
+    invalid_arg
+      (Printf.sprintf "Dsl.scatter_add: idx shape %s does not match src shape %s"
+         (Shape.to_string idx.shape)
+         (Shape.to_string src.shape));
+  if not (accumulable src.dtype) then
+    invalid_arg
+      (Printf.sprintf "Dsl.scatter_add: dtype %s cannot be accumulated"
+         (Dtype.name src.dtype));
+  Tensor.make src.dtype shape (Tensor.Scatter_add (idx, src, shape))
+
 let reshape shape (src : _ Tensor.t) =
   (* Metadata only: the element count must be preserved. *)
   if Shape.numel shape <> Shape.numel src.shape then

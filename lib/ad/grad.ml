@@ -271,9 +271,20 @@ let back_node : type a. tbl -> a Tensor.t -> a Tensor.t -> unit =
           as op) ->
           raise (Not_differentiable (op_desc "Scan" (Some op)))
       | None -> raise (Not_differentiable (op_desc "Scan" None)))
-  | Tensor.Gather (_, _) ->
-      (* T19 replaces this with a Scatter_add adjoint. *)
-      raise (Not_differentiable "Gather")
+  | Tensor.Gather (idx, src) ->
+      (* out[i] = src[idx[i]], so adj_src[idx[i]] += abar[i]: exactly a
+         scatter-add back into the source's shape. The accumulation is what
+         makes a repeated index correct -- two output elements reading the
+         same source element must both contribute. [idx] is an integer
+         tensor and carries no adjoint of its own. *)
+      if Dtype.is_float src.Tensor.dtype then
+        accumulate tbl src (Dsl.scatter_add idx abar src.Tensor.shape)
+  | Tensor.Scatter_add (idx, src, _) ->
+      (* The exact transpose of [Gather]: out[idx[i]] += src[i], so
+         adj_src[i] = abar[idx[i]] -- a gather by the very same index. No
+         accumulation is needed on this side, because every source element
+         contributes to exactly one output element. *)
+      accum_into tbl src (Dsl.gather idx abar)
   | Tensor.Reshape (_, src) ->
       accum_into tbl src (Dsl.reshape src.Tensor.shape abar)
   | Tensor.Broadcast (_, src) ->

@@ -16,5 +16,6 @@
   test_expr_ops
   test_rng
   test_deriv
-  test_grad)
+  test_grad
+  test_scatter)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))
