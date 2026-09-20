@@ -66,7 +66,7 @@ val normal : float Dtype.t -> key:int32 Tensor.t -> Shape.t -> float Tensor.t
 
 ## Implementation
 
-Philox constants: `M0 = 0xD2511F53`, `M1 = 0xCD9E8D7C`, `W0 = 0x9E3779B9`,
+Philox constants: `M0 = 0xD2511F53`, `M1 = 0xCD9E8D57`, `W0 = 0x9E3779B9`,
 `W1 = 0xBB67AE85` (as `Int32.of_string "0x..."`, which wraps to negative).
 
 One round on `(c0, c1, c2, c3)` with key `(k0, k1)`:

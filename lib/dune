@@ -3,6 +3,7 @@
  (public_name ocaml_cuda)
  (libraries
   ocaml_cuda_ir
+  ocaml_cuda_rng
   ocaml_cuda_passes
   ocaml_cuda_lower
   ocaml_cuda_runtime

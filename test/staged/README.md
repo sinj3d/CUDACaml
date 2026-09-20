@@ -7,7 +7,6 @@ that owns it; the system suite is promoted by T28.
 
 | File | Owner | Promoted when |
 |---|---|---|
-| `unit/test_rng.ml` | T16 | `Rng` library |
 | `unit/test_deriv.ml` | T17 | `Deriv` (scalar derivatives, `apply1`/`apply2`, `simplify`) |
 | `unit/test_grad.ml` | T18 | `Grad.grad` |
 | `unit/test_scatter.ml` | T19 | `Tensor.Scatter_add`, `Kernel_ir.Atomic_add`, Gather adjoint |
