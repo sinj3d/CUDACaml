@@ -20,5 +20,6 @@
   test_scatter
   test_black_scholes
   test_multikernel
-  test_matmul)
+  test_matmul
+  test_lsm)
  (libraries ocaml_cuda ocaml_cuda_examples ocaml_cuda_testlib))
