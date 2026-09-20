@@ -80,6 +80,12 @@ let () =
   C.test "S5 run the same compiled saxpy 50 times; pool is stable" (fun () ->
       let n = 4096 in
       let c = Backend_cuda.compile (Cudacaml_examples.Saxpy.program ~n ~a:2.0) in
+      (* S1-S4 compiled through [Differential.check], which never releases
+         its executors, so each still owns device buffers until its
+         finaliser runs. Collect them now: a major GC completing part-way
+         through the loop below would drop [live_count] under the baseline
+         and fail the stability check for a reason unrelated to the pool. *)
+      Gc.full_major ();
       let l = live () in
       for k = 1 to 50 do
         let inputs = [ ("x", f32s n (fun i -> float_of_int (i + k))); ("y", f32s n (fun _ -> 1.0)) ] in

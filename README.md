@@ -146,21 +146,30 @@ machine cannot run.
 
 ## Results
 
-### Where the datacentre card earns its keep
+### The adjoint, and a measurement that would not sit still
 
 The reverse-mode adjoint of `bs_mc` — four Greeks from one backward pass, 25
 kernels — at n = 2²², f32, through the persistent executor (S20):
 
 | | forward price | Greeks (adjoint) | gradient / forward |
 |---|---:|---:|---:|
-| RTX 5080 Laptop | 0.4 ms | 10.0–10.2 ms | **~28×** |
-| A100-SXM4-40GB | 0.2 ms | 0.7 ms | **~4×** |
+| RTX 5080 Laptop | 0.3–0.4 ms | **1.0 ms** or **10.0–10.4 ms** | 2.7× or 28–30× |
+| A100-SXM4-40GB | 0.2 ms | 0.7 ms | ~4× |
 
-The forward price is about twice as fast on the A100; the gradient is about
-**fourteen** times faster. The adjoint graph churns the buffer pool, and that is
-where the two memory systems stop looking alike. If you are pricing with AAD,
-this row is the one that matters — and it is measured, not inferred from the
-graph shape.
+The A100 row is one run. The laptop row is five consecutive runs of the same
+binary on the same day, and it is bimodal: two runs put the Greeks at 1.0 ms
+and three at about 10 ms, with the forward price steady throughout. The f64
+Greeks move the same way, 3.5 ms in the fast runs against 16–28 ms in the slow
+ones. An earlier draft of this page read the 10 ms mode as a memory-system gap
+between the two cards; the 1.0 ms runs show it is not a property of the card.
+The likelier culprit is the host — a WSL2 laptop whose GPU clocks and driver
+scheduling change state under a bursty 25-launch workload — but that is a
+hypothesis, not a measurement.
+
+What the table does support: in its fast mode the laptop card is within a
+factor of two of the A100 on the adjoint, as it is on the forward price. For a
+cross-card comparison trust the throughput table below, which is best-of-5 and
+did not show this behaviour.
 
 ### Throughput
 
@@ -220,10 +229,14 @@ lib/backend_interp pure-OCaml reference interpreter
 lib/runtime     driver API and NVRTC bindings: jit, launch, streams, buffers
 lib/ad          reverse-mode AD over the graph
 lib/rng         Philox counter-based RNG
+bin/            the cudacaml CLI
 examples/       Black-Scholes, Longstaff-Schwartz, and smaller programs
+test/lib        the dependency-free test harness (Check)
 test/unit       one executable per module
 test/system     the gated end-to-end suite (S1-S20)
 bench/          benchmark driver and per-card recorded results
+scripts/        brev.dev bootstrap and the bench recorder
+tasks/          the work orders (T01-T28) the code was built from
 ```
 
 ## License

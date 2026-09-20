@@ -32,26 +32,29 @@ violation is a build error, not a code-review catch.
 |---|---|---|---|
 | 1 | `cudacaml.ir` | `Uid` `Dtype` `Shape` `Expr` `Tensor` `Value` `Graph` `Dsl` | The IR and the user-facing surface. Types are public variants; passes match on them exhaustively. |
 | 2 | `cudacaml.passes` | `Pass` `Layout` `Pipeline` | Graph → Graph rewrites. Pure. Semantics-preserving as judged by the interpreter. |
+| 2 | `cudacaml.rng` | `Rng` | Philox-4x32-10 as a graph: `u32`, `uniform`, `normal`. Built from `Dsl` calls only, so it fuses like user code. |
+| 2 | `cudacaml.ad` | `Deriv` `Grad` | Symbolic derivatives of element functions, and reverse-mode `Grad` as a Graph → Graph transform. Emits only `Dsl` calls, so no new node kind appears. |
 | 3 | `cudacaml.lower` | `Fusion` `Schedule` `Kernel_ir` `Lower` | Graph → imperative kernels + host plan. `Fusion` is an *analysis* (which nodes get a buffer); `Lower` inlines everything else. **Every performance decision is made here** and is visible in `Kernel_ir`. |
-| 4 | `cudacaml.runtime` | `Device` `Buffer` `Jit` `Launch` | Bytes, pointers, PTX strings, kernel handles. IR-agnostic. Wraps `cudajit`. |
+| 4 | `cudacaml.runtime` | `Device` `Buffer` `Stream` `Event` `Pinned` `Jit` `Launch` | Bytes, pointers, PTX strings, kernel handles. Takes `Value` / `Dtype` / `Shape` from layer 1 for host copies; never sees `Graph` or `Kernel_ir`. Wraps `cudajit`. |
 | 5 | `cudacaml.backend` | `Backend` `Differential` | The executor signature and the correctness harness. |
 | 5 | `cudacaml.backend_interp` | (one module) | Reference evaluator. Runs the *unoptimised* graph. |
-| 5 | `cudacaml.backend_cuda` | `Emit` `Mangle` `Executor` + main | Pipeline → Lower → Emit → Jit; Executor per run. |
+| 5 | `cudacaml.backend_cuda` | `Emit` `Mangle` `Executor` `Multi` + main | Pipeline → Lower → Emit → Jit. A persistent `Executor` per compiled program: buffers allocated once, one stream, sync / async / device-resident runs. `Multi` drives one graph across devices. |
 | — | `cudacaml` | umbrella | Flat namespace for users. |
 
 ## The interfaces that matter
 
 - **`Tensor.node`** (layer 1) is the contract between the front end and every
-  pass. Eleven variants. Adding one means updating `Tensor.deps`, `Fusion`,
-  `Lower` and `Backend_interp`; the compiler will list them.
+  pass. Eleven variants. Adding one means updating `Tensor.deps`, `Dsl`,
+  `Fusion`, `Lower`, `Backend_interp` and `Grad`; the compiler will list them.
 - **`Expr.fn1` / `fn2`** is how user closures enter the IR: applied once to
   `Arg` placeholders at construction time, never stored. The IR stays
   first-order and inspectable.
 - **`Pass.S`** = `{ name; run : Graph.t -> Graph.t }`. Pipeline is a fold.
-- **`Fusion.plan`** decides materialisation only: Params, `Reduce`/`Scan`,
-  outputs, and anything with fan-out ≥ 2 get a buffer; every other
-  element-wise node is inlined into its consumer's kernel by `Lower`. This
-  gives map/map2/reduce fusion without an n-ary node in the IR.
+- **`Fusion.plan`** decides materialisation only: Params, the fusion
+  barriers (`Reduce`, `Scan`, `Scatter_add`, `Matmul`), outputs, and anything
+  with fan-out ≥ 2 get a buffer; every other element-wise node is inlined
+  into its consumer's kernel by `Lower`. This gives map/map2/reduce fusion
+  without an n-ary node in the IR.
 - **`Kernel_ir.program`** = kernels + `host_op` plan. `Emit` prints the
   kernels; `Executor` walks the plan. Neither makes decisions.
 - **`Backend.S`** = `{ compile : Graph.t -> compiled; run : compiled -> inputs -> outputs }`.

@@ -1,7 +1,8 @@
-; IR-agnostic. Knows about bytes, pointers, PTX strings and kernel handles;
-; never about Graph or Kernel_ir. The real implementation wraps cudajit
-; (driver API + NVRTC). Until then every function raises, so the rest of
-; the project builds and tests on a machine with no GPU.
+; Knows about bytes, pointers, PTX strings and kernel handles, and takes
+; Value / Dtype / Shape from cudacaml_ir for host copies; never about Graph
+; or Kernel_ir. Wraps cudajit (driver API + NVRTC). Device.available ()
+; is false without a GPU, and every GPU-dependent test skips itself on it,
+; so the rest of the project still builds and tests on such a machine.
 (library
  (name cudacaml_runtime)
  (public_name cudacaml.runtime)

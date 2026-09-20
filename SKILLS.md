@@ -29,17 +29,23 @@ dune exec cudacaml -- list              # example names
 `make system` sets `CUDACAML_SYSTEM=1` itself. Run one unit test directly with
 `dune exec test/unit/test_value.exe`.
 
-### Two traps
+### Three traps
 
 - **`dune exec cudacaml` fails with `libnvrtc.so.12: cannot open shared object
   file` even though `make unit` passes.** The `Makefile` exports
   `LD_LIBRARY_PATH`; bare `dune exec` does not inherit it. Either go through a
   `make` target or export `CUDA_PATH` and `$CUDA_PATH/lib64` yourself. This is
   not a broken build.
-- **`make unit` passing does not mean the GPU paths ran.** `test_runtime` and
-  `test_executor` skip themselves when no device is present, and a skip still
+- **`make unit` passing does not mean the GPU paths ran.** Seven suites skip
+  themselves when no device is present — `test_runtime`, `test_executor`,
+  `test_info`, `test_pool`, `test_streams`, `test_pinned`, `test_multigpu`
+  (which also skips its second half on a one-card machine) — and a skip still
   reports `0 failures`. Only `make system` fails rather than skips. If you
   changed anything below `lib/lower`, run `make system`.
+- **`make unit` printed nothing and exited 0.** dune caches test results, so
+  on an unchanged tree it re-runs nothing and shows nothing. `make system`
+  passes `--force` for exactly this reason; to see the unit suite run again,
+  use `dune test test/unit --force`.
 
 ## Layering — the rule that is enforced
 
@@ -50,6 +56,7 @@ than a review comment. Dependencies point strictly downward:
 ir  →  passes  →  lower  →  backend_cuda
                   runtime ↗
        backend / backend_interp
+ir  →  rng, ad        (graph libraries built from Dsl calls; ir only)
 ```
 
 `runtime` never imports `Graph` or `Kernel_ir`. It knows bytes, pointers, PTX
@@ -68,10 +75,10 @@ strings and kernel handles. If you find yourself wanting a `Graph` in
    no dynamic-shape path to extend.
 4. **No dtype is "the fast one".** Every dtype-dependent choice is made from
    the `Dtype.t` witness. `F32` and `F64` go through identical machinery.
-5. **`Fusion` decides materialisation only** — params, `Reduce`/`Scan`,
-   outputs, and anything with fan-out ≥ 2 get a buffer; everything else is
-   inlined by `Lower`. That is how map/map2/reduce fusion happens without an
-   n-ary node in the IR.
+5. **`Fusion` decides materialisation only** — params, the fusion barriers
+   (`Reduce`, `Scan`, `Scatter_add`, `Matmul`), outputs, and anything with
+   fan-out ≥ 2 get a buffer; everything else is inlined by `Lower`. That is
+   how map/map2/reduce fusion happens without an n-ary node in the IR.
 
 ## Adding a node to the IR
 
@@ -90,9 +97,10 @@ CUDA path agree. That ordering is the whole point of having an oracle.
 
 ## Testing
 
-`test/lib/check.ml` is the harness: `C.test`, `C.int`, `C.float ?tol`,
-`C.floats ?tol`, `C.string`, `C.contains`, `C.raises`, `C.skip`. A suite ends
-with `C.run ()` and prints `N tests, 0 failures`.
+`test/lib/check.ml` is the harness: `C.test`, `C.int`, `C.bool`,
+`C.float ?tol`, `C.floats ?tol`, `C.string`, `C.contains`, `C.raises`,
+`C.fail`, `C.skip`. A suite ends with `C.run ()` and prints
+`N tests, 0 failures`.
 
 - **Unit tests** (`test/unit/`, one executable per module) must pass without a
   GPU, or skip themselves explicitly with `C.skip`.
@@ -105,7 +113,10 @@ with `C.run ()` and prints `N tests, 0 failures`.
 
 ## Conventions
 
-- `.mli` for everything public; the doc comment there is the spec.
+- `.mli` for every module with something to hide; the doc comment there is
+  the spec. The closed variant types — `Dtype`, `Expr`, `Tensor`,
+  `Kernel_ir`, `Pass`, `Backend` — have no `.mli` on purpose: the `.ml` *is*
+  the type, and every pass matches on it exhaustively.
 - Comments say *why*, not what. The existing ones set the register — they
   explain a constant, a bound, or a decision someone would otherwise undo.
 - No trailing whitespace; the codebase is LF (`core.autocrlf` is on for
